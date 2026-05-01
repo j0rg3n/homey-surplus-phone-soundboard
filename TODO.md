@@ -28,9 +28,9 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 3 — Core Logic
 *Depends on Group 2. Items 3.1–3.3 are parallelisable.*
 
-- [ ] **3.1** Implement `lib/PlaybackHandleStore.js` per SPEC §10. Tests cover: add/get/remove lifecycle, `clear()` returns all removed entries, `isPlaying()` returns correct boolean, handles with same soundName counted correctly. Target > 80% coverage.
-- [ ] **3.2** Implement `lib/WebSocketClient.js` per SPEC §11. Tests use a mock `ws` server: connect sends `hello`, ping/pong heartbeat fires on interval, 3 missed pongs triggers `onDisconnect`, reconnect backoff doubles up to max, `send()` serializes via `MessageProtocol`. Target > 65% coverage.
-- [ ] **3.3** Implement Android `PlaybackService` audio engine (AudioTrack + MediaExtractor/MediaCodec) per SPEC §4. Unit tests with mocked AudioTrack cover: volume mapping formula `(v/100)^1.5` at key values (0, 50, 100, 200, 400), clamp to 1.0, loop stop plays to end of full sample not loop end point, `done` fires with correct reason. Target > 65% coverage.
+- [x] **3.1** Implement `lib/PlaybackHandleStore.js` per SPEC §10. Tests cover: add/get/remove lifecycle, `clear()` returns all removed entries, `isPlaying()` returns correct boolean, handles with same soundName counted correctly. Target > 80% coverage.
+- [x] **3.2** Implement `lib/WebSocketClient.js` per SPEC §11. Tests use a mock `ws` server: connect sends `hello`, ping/pong heartbeat fires on interval, 3 missed pongs triggers `onDisconnect`, reconnect backoff doubles up to max, `send()` serializes via `MessageProtocol`. Target > 65% coverage.
+- [x] **3.3** Implement Android `PlaybackService` audio engine (AudioTrack + MediaExtractor/MediaCodec) per SPEC §4. Unit tests with mocked AudioTrack cover: volume mapping formula `(v/100)^1.5` at key values (0, 50, 100, 200, 400), clamp to 1.0, loop stop plays to end of full sample not loop end point, `done` fires with correct reason. Target > 65% coverage.
 
 ---
 
