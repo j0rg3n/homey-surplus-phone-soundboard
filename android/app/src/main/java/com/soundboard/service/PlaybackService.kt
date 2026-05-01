@@ -25,11 +25,13 @@ import io.ktor.server.websocket.WebSockets
 import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
+import kotlinx.coroutines.launch
 
 @AndroidEntryPoint
 class PlaybackService : Service() {
 
     private var server: ApplicationEngine? = null
+    private val audioEngine = AudioEngine()
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -131,10 +133,39 @@ class PlaybackService : Service() {
             when (msg) {
                 is SoundboardMessage.Play -> {
                     Log.d(TAG, "PLAY soundId=${msg.soundId} volume=${msg.volume} handle=${msg.handle}")
-                    // TODO Group 3: trigger audio engine
+                    audioEngine.play(
+                        soundId = msg.soundId,
+                        volume = msg.volume,
+                        handle = msg.handle,
+                        onStarted = {
+                            launch { send(Frame.Text(MessageProtocol.serialize(
+                                SoundboardMessage.Started(
+                                    handle = msg.handle,
+                                    soundId = msg.soundId,
+                                    soundName = msg.soundId,
+                                    durationMs = 0,
+                                )
+                            ))) }
+                        },
+                        onDone = { reason ->
+                            launch { send(Frame.Text(MessageProtocol.serialize(
+                                SoundboardMessage.Done(
+                                    handle = msg.handle,
+                                    soundName = msg.soundId,
+                                    reason = reason,
+                                )
+                            ))) }
+                        }
+                    )
                 }
-                is SoundboardMessage.Stop -> Log.d(TAG, "STOP handle=${msg.handle}")
-                is SoundboardMessage.StopAll -> Log.d(TAG, "STOP_ALL")
+                is SoundboardMessage.Stop -> {
+                    Log.d(TAG, "STOP handle=${msg.handle}")
+                    audioEngine.stop(msg.handle)
+                }
+                is SoundboardMessage.StopAll -> {
+                    Log.d(TAG, "STOP_ALL")
+                    audioEngine.stopAll()
+                }
                 is SoundboardMessage.Ping -> {
                     send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.Pong)))
                 }
@@ -147,6 +178,7 @@ class PlaybackService : Service() {
         }
 
         Log.d(TAG, "Client disconnected")
+        audioEngine.fireConnectionLost()
     }
 
     companion object {
