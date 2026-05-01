@@ -41,7 +41,13 @@ android {
 
     packaging {
         resources {
-            excludes += ['META-INF/INDEX.LIST', 'META-INF/DEPENDENCIES']
+            excludes += [
+                'META-INF/INDEX.LIST',
+                'META-INF/DEPENDENCIES',
+                'META-INF/AL2.0',
+                'META-INF/LGPL2.1',
+                'META-INF/*.kotlin_module',
+            ]
         }
     }
 }
@@ -79,6 +85,9 @@ dependencies {
     testImplementation 'junit:junit:4.13.2'
     testImplementation 'io.mockk:mockk:1.13.8'
     testImplementation 'org.jetbrains.kotlinx:kotlinx-coroutines-test:1.7.3'
+    testImplementation 'io.ktor:ktor-server-test-host:2.3.7'
+    testImplementation 'io.ktor:ktor-client-websockets:2.3.7'
+    testImplementation 'org.slf4j:slf4j-simple:1.7.36'
     implementation 'com.google.code.gson:gson:2.10'
     androidTestImplementation 'androidx.test.ext:junit:1.1.5'
     androidTestImplementation 'androidx.test.espresso:espresso-core:3.5.1'
