@@ -5,7 +5,7 @@ import Homey from 'homey';
 class MyApp extends Homey.App {
 
   async onInit() {
-    this.log('Homey Soundboard app has been initialized');
+    this.log('Surplus Soundboard app has been initialized');
   }
 
 }

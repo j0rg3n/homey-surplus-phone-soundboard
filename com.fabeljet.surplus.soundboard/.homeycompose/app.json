@@ -1,5 +1,5 @@
 {
-  "id": "com.fabeljet.unofficial-homey-soundboard",
+  "id": "com.fabeljet.surplus.soundboard",
   "version": "1.0.0",
   "compatibility": ">=12.4.0",
   "sdk": 3,
@@ -8,7 +8,7 @@
     "local"
   ],
   "name": {
-    "en": "Unofficial Homey Sound Board"
+    "en": "Surplus Soundboard"
   },
   "description": {
     "en": "Advanced sound board using surplus mobile devices"

@@ -1,5 +1,5 @@
 {
-  "name": "com.fabeljet.unofficial-homey-soundboard",
+  "name": "com.fabeljet.surplus.soundboard",
   "version": "1.0.0",
   "scripts": {
     "build": "tsc",

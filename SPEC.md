@@ -1,8 +1,8 @@
-# SPEC.md — Homey Soundboard
+# SPEC.md — Surplus Soundboard
 
-**App name:** Homey Soundboard  
+**App name:** Surplus Soundboard  
 **App icon:** House with sound waves (SVG, house silhouette + emanating arcs, white on colored background)  
-**Homey app id:** `com.unofficial.homey-soundboard`  
+**Homey app id:** `com.fabeljet.surplus.soundboard`  
 **Android min SDK:** API 26 (Android 8.0, Galaxy A8 2018 SM-A530)  
 **Android target SDK:** API 34  
 

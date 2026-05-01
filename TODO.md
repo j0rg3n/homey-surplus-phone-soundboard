@@ -1,4 +1,4 @@
-# TODO.md — Homey Soundboard
+# TODO.md — Surplus Soundboard
 
 See SPEC.md for all interfaces, protocol details, and data shapes.  
 See CLAUDE.md for rules governing how this TODO should be maintained.
@@ -8,7 +8,7 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 1 — Project Scaffolding
 *No dependencies. All items parallelisable.*
 
-- [x] **1.1** Initialise Homey app with `homey app create`: id `com.unofficial.homey-soundboard`, name, house-with-sound-waves icon SVG. Verify `homey app validate` passes.
+- [x] **1.1** Initialise Homey app with `homey app create`: id `com.fabeljet.surplus.soundboard`, name, house-with-sound-waves icon SVG. Verify `homey app validate` passes.
 - [x] **1.2** Initialise Android project (Kotlin, min SDK 26, target SDK 34). Add dependencies: Ktor server websockets + CIO, Room, Kotlin coroutines, Hilt. Set up module structure per SPEC §2.1.
 - [x] **1.3** Set up Homey test runner (Jest), coverage reporter, `npm test` and `npm run coverage` scripts. Add CI workflow.
 - [x] **1.4** Set up Android test configuration: JUnit4 + MockK for unit tests, Espresso for UI tests. Add CI workflow step.
