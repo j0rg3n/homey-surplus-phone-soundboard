@@ -1,17 +1,20 @@
+'use strict';
+
 class MockWebSocketClient {
-  constructor() {
+  constructor({ onMessage, onConnect, onDisconnect } = {}) {
     this._connected = false;
     this._sentMessages = [];
-    this._onMessageCallback = null;
-    this._onConnectCallback = null;
-    this._onDisconnectCallback = null;
+    this._onMessageCallback = onMessage || null;
+    this._onConnectCallback = onConnect || null;
+    this._onDisconnectCallback = onDisconnect || null;
   }
 
   connect() {
     this._connected = true;
     if (this._onConnectCallback) {
-      this._onConnectCallback();
+      this._onConnectCallback({ deviceName: 'MockDevice', sounds: [] });
     }
+    return Promise.resolve();
   }
 
   disconnect() {
@@ -19,6 +22,7 @@ class MockWebSocketClient {
     if (this._onDisconnectCallback) {
       this._onDisconnectCallback();
     }
+    return Promise.resolve();
   }
 
   send(message) {
@@ -26,6 +30,7 @@ class MockWebSocketClient {
       throw new Error('Not connected');
     }
     this._sentMessages.push(message);
+    return Promise.resolve();
   }
 
   simulateMessage(message) {
@@ -35,11 +40,17 @@ class MockWebSocketClient {
   }
 
   simulateDisconnect() {
-    this.disconnect();
+    this._connected = false;
+    if (this._onDisconnectCallback) {
+      this._onDisconnectCallback();
+    }
   }
 
-  simulateConnect() {
-    this.connect();
+  simulateConnect(helloAck = { deviceName: 'MockDevice', sounds: [] }) {
+    this._connected = true;
+    if (this._onConnectCallback) {
+      this._onConnectCallback(helloAck);
+    }
   }
 
   getLastSentMessage() {
@@ -52,18 +63,6 @@ class MockWebSocketClient {
 
   isConnected() {
     return this._connected;
-  }
-
-  onMessage(callback) {
-    this._onMessageCallback = callback;
-  }
-
-  onConnect(callback) {
-    this._onConnectCallback = callback;
-  }
-
-  onDisconnect(callback) {
-    this._onDisconnectCallback = callback;
   }
 }
 

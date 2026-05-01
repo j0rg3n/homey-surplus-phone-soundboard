@@ -1,0 +1,11 @@
+{
+  "id": "sound_started",
+  "title": { "en": "A sound started playing" },
+  "tokens": [
+    { "name": "sound_name", "type": "string", "title": { "en": "Sound name" } },
+    { "name": "handle", "type": "string", "title": { "en": "Handle" } },
+    { "name": "duration_ms", "type": "number", "title": { "en": "Duration (ms)" } }
+  ],
+  "device": true,
+  "filter": "driver_id=soundboard"
+}

@@ -37,7 +37,7 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 4 — Network Servers and Clients
 *Depends on Group 3. Items 4.1 and 4.2 are parallelisable.*
 
-- [ ] **4.1** Implement Android `WebSocketServer` (Ktor) per SPEC §6.2. Integration tests (Ktor test engine): `hello` → `hello_ack` handshake with sound library, `play` → `started` callback, `stop` → `done` with reason `"stopped"`, `stop_all` stops all instances, `ping` → `pong`, unknown message type → `error` response, `library_update` pushed to all connected sessions on library change.
+- [x] **4.1** Implement Android `WebSocketServer` (Ktor) per SPEC §6.2. Integration tests (Ktor test engine): `hello` → `hello_ack` handshake with sound library, `play` → `started` callback, `stop` → `done` with reason `"stopped"`, `stop_all` stops all instances, `ping` → `pong`, unknown message type → `error` response, `library_update` pushed to all connected sessions on library change.
 - [ ] **4.2** Implement Android `SampleRepository`, `PlaybackRepository`, and `FileStore` per SPEC §7. Room unit tests for CRUD. FileStore tests for import (copy to private storage), delete (file removed), and path resolution. PlaybackRepository StateFlow emission tests.
 
 ---
@@ -45,7 +45,7 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 5 — Homey Device Adapter + Android UI
 *Depends on Group 4. Items 5.1 and 5.2 are parallelisable.*
 
-- [ ] **5.1** Implement `drivers/soundboard/device.js` per SPEC §8. Tests use `MockWebSocketClient` + `MockHomeyDevice`: `sound_started` trigger fires with correct tokens, `sound_done` fires with reason, `done` fires with `reason: "connection_lost"` for all in-flight handles on disconnect, `speaker_playing` capability toggles correctly, `library_update` updates sound store, `play_sound` action sends correct play message and sets handle tag.
+- [x] **5.1** Implement `drivers/soundboard/device.js` per SPEC §8. Tests use `MockWebSocketClient` + `MockHomeyDevice`: `sound_started` trigger fires with correct tokens, `sound_done` fires with reason, `done` fires with `reason: "connection_lost"` for all in-flight handles on disconnect, `speaker_playing` capability toggles correctly, `library_update` updates sound store, `play_sound` action sends correct play message and sets handle tag.
 - [ ] **5.2** Implement Android `NowPlayingFragment` and `LibraryFragment` per SPEC §5.2–5.4. Espresso tests: Now Playing list shows active playbacks and stop button triggers stop; Library search filters by name; Sample edit sheet saves name/volume/loop fields; delete shows confirmation dialog.
 
 ---
