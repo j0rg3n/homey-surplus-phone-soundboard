@@ -1,0 +1,28 @@
+{
+  "name": "com.fabeljet.unofficial-homey-soundboard",
+  "version": "1.0.0",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "coverage": "jest --coverage",
+    "lint": "eslint --ext .js,.ts --ignore-path .gitignore ."
+  },
+  "devDependencies": {
+    "@tsconfig/node16": "^16.1.8",
+    "@types/homey": "npm:homey-apps-sdk-v3-types",
+    "@types/node": "^18",
+    "eslint": "^7.32.0",
+    "eslint-config-athom": "^3.1.5",
+    "jest": "^29.7.0",
+    "sharp": "^0.34.5",
+    "typescript": "^5.0.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+      "lib/**/*.js",
+      "drivers/**/*.js"
+    ]
+  }
+}

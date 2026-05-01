@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Homey Soundboard</string>
+    <string name="now_playing">Now Playing</string>
+    <string name="library">Library</string>
+    <string name="settings">Settings</string>
+    <string name="no_sounds_playing">No sounds playing</string>
+    <string name="device_name">Device name</string>
+    <string name="websocket_port">WebSocket port</string>
+    <string name="stop_service">Stop service</string>
+    <string name="developer_tips">Developer tips</string>
+    <string name="notification_channel_name">Soundboard</string>
+    <string name="notification_title">Soundboard active</string>
+    <string name="notification_text">%d sounds playing</string>
+</resources>
