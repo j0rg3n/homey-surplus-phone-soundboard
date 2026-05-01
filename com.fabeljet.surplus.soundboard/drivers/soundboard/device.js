@@ -29,6 +29,10 @@ class SoundboardDevice extends Device {
       this.log('Initial connect failed:', err.message);
       this.setUnavailable(err.message).catch(this.error);
     });
+
+    this.registerCapabilityListener('speaker_playing', async (value) => {
+      this.log('speaker_playing toggled:', value);
+    });
   }
 
   async onDeleted() {

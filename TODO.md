@@ -20,8 +20,8 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 2 — Protocol Layer
 *Depends on Group 1. Items 2.1 and 2.2 are parallelisable.*
 
-- [ ] **2.1** Implement `lib/MessageProtocol.js` (Homey) per SPEC §9. Tests cover: serialize round-trips all message types, deserialize throws on invalid JSON, deserialize throws on missing type, validate catches missing required fields for each message type. Target > 80% coverage.
-- [ ] **2.2** Implement Kotlin `MessageProtocol` (Android) — JSON serialization/deserialization for all upstream and downstream message types per SPEC §3.2. Unit tests cover same cases as 2.1 plus Kotlin-side type safety. Target > 80% coverage.
+- [x] **2.1** Implement `lib/MessageProtocol.js` (Homey) per SPEC §9. Tests cover: serialize round-trips all message types, deserialize throws on invalid JSON, deserialize throws on missing type, validate catches missing required fields for each message type. Target > 80% coverage.
+- [x] **2.2** Implement Kotlin `MessageProtocol` (Android) — JSON serialization/deserialization for all upstream and downstream message types per SPEC §3.2. Unit tests cover same cases as 2.1 plus Kotlin-side type safety. Target > 80% coverage.
 
 ---
 

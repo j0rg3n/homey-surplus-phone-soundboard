@@ -42,11 +42,16 @@ _adb shell am force-stop "$PACKAGE"
 _reconnect
 _adb shell am start -n "$ACTIVITY"
 
-sleep 2 && _reconnect
+echo "▶  Waiting for app to start..."
+PID=""
+for i in $(seq 1 10); do
+  sleep 1 && _reconnect
+  PID=$(_adb shell pidof -s "$PACKAGE" 2>/dev/null || true)
+  [ -n "$PID" ] && break
+done
 
-PID=$(_adb shell pidof -s "$PACKAGE" 2>/dev/null || true)
 if [ -z "$PID" ]; then
-  echo "⚠  App did not start — showing crash output and exiting"
+  echo "⚠  App did not start after 10s — showing crash output and exiting"
   _adb logcat -d -v time "*:E"
   exit 1
 fi
