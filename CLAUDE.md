@@ -105,7 +105,11 @@ Read this before making any changes. These rules apply to both the Homey (Node.j
 - `getTriggerCard(id)` → `FlowCardTrigger` — call `.trigger(tokens)` (no device arg).
 - `getDeviceTriggerCard(id)` → `FlowCardTriggerDevice` — call `.trigger(device, tokens)`.
 - Never pass a device to `getTriggerCard().trigger()` — it silently fires on the wrong scope.
-- Device-scoped trigger cards need `"device": true` and `"filter": "driver_id=<id>"` in the flow card JSON.
+- Device-scoped trigger cards: do NOT use `"device": true`. Use an explicit `args` entry instead:
+  ```json
+  "args": [{ "type": "device", "name": "device", "filter": "driver_id=<id>" }]
+  ```
+  Using `"device": true` causes `.trigger()` to resolve without error but flows never execute.
 
 ### Capabilities
 - Re-pair the device after adding or removing capabilities — the Homey UI does not update live.

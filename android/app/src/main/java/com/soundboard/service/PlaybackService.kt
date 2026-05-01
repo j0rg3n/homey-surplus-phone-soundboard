@@ -11,6 +11,8 @@ import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
 import com.soundboard.Constants
+import com.soundboard.data.PlaybackRepository
+import com.soundboard.data.SampleRepository
 import com.soundboard.protocol.MessageProtocol
 import com.soundboard.protocol.SoundInfo
 import com.soundboard.protocol.SoundboardMessage
@@ -23,13 +25,19 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class PlaybackService : Service() {
 
+    @Inject lateinit var sampleRepository: SampleRepository
+    @Inject lateinit var playbackRepository: PlaybackRepository
+
     private var server: ApplicationEngine? = null
     private val audioEngine = AudioEngine()
     val sessionRegistry = SessionRegistry()
+
+    @Volatile private var cachedSounds: List<SoundInfo> = emptyList()
 
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -39,6 +47,8 @@ class PlaybackService : Service() {
         super.onCreate()
         startAsForeground()
         startWebSocketServer()
+        observeLibrary()
+        observeStopRequests()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -92,10 +102,34 @@ class PlaybackService : Service() {
         Log.d(TAG, "Starting WebSocket server on port $port")
 
         server = embeddedServer(CIO, port = port) {
-            soundboardWebSocketModule(audioEngine, sessionRegistry, Build.MODEL)
+            soundboardWebSocketModule(
+                audioEngine = audioEngine,
+                registry = sessionRegistry,
+                deviceName = Build.MODEL,
+                sounds = { cachedSounds },
+                lookupSound = { id -> sampleRepository.getById(id) },
+                playbackRepository = playbackRepository,
+            )
         }.also { it.start(wait = false) }
 
         Log.d(TAG, "WebSocket server started")
+    }
+
+    private fun observeLibrary() {
+        serviceScope.launch {
+            sampleRepository.observeAll().collect { samples ->
+                cachedSounds = samples.map { it.toSoundInfo() }
+                broadcastLibraryUpdate(cachedSounds)
+            }
+        }
+    }
+
+    private fun observeStopRequests() {
+        serviceScope.launch {
+            playbackRepository.stopRequests.collect { handle ->
+                audioEngine.stop(handle)
+            }
+        }
     }
 
     companion object {
@@ -104,3 +138,13 @@ class PlaybackService : Service() {
         private const val NOTIFICATION_ID = 1
     }
 }
+
+private fun com.soundboard.data.SampleEntity.toSoundInfo() = SoundInfo(
+    id = id,
+    name = name,
+    durationMs = durationMs,
+    loop = loop,
+    loopStartMs = loopStartMs,
+    loopEndMs = loopEndMs,
+    defaultVolume = defaultVolume,
+)

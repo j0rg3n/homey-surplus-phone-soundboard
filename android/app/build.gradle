@@ -52,6 +52,12 @@ android {
     }
 }
 
+configurations.all {
+    // logback-classic uses Class.getModule() (Java 9+) which crashes on Android ART.
+    // slf4j-android is the correct SLF4J binding for production; slf4j-simple for tests.
+    exclude group: 'ch.qos.logback'
+}
+
 dependencies {
     implementation 'androidx.core:core-ktx:1.12.0'
     implementation 'androidx.appcompat:appcompat:1.6.1'

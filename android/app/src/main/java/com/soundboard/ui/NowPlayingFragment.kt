@@ -34,8 +34,8 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentNowPlayingBinding.bind(view)
 
-        adapter = NowPlayingAdapter { _ ->
-            // TODO: bind to PlaybackService and call stop(handle) — out of scope for this group
+        adapter = NowPlayingAdapter { playback ->
+            viewModel.stop(playback.handle)
         }
         binding.recyclerNowPlaying.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerNowPlaying.adapter = adapter

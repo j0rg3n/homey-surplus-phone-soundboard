@@ -1,7 +1,12 @@
 package com.soundboard.service
 
+import android.util.Log
 import com.soundboard.ErrorCode
+import com.soundboard.data.ActivePlayback
+import com.soundboard.data.PlaybackRepository
+import com.soundboard.data.SampleEntity
 import com.soundboard.protocol.MessageProtocol
+import com.soundboard.protocol.SoundInfo
 import com.soundboard.protocol.SoundboardMessage
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -12,6 +17,8 @@ import io.ktor.server.websocket.webSocket
 import io.ktor.websocket.Frame
 import io.ktor.websocket.readText
 import kotlinx.coroutines.launch
+
+private const val TAG = "PlaybackService"
 
 class SessionRegistry {
     private val sessions =
@@ -28,25 +35,20 @@ class SessionRegistry {
     fun all(): List<DefaultWebSocketServerSession> = sessions.toList()
 }
 
-/**
- * Installs the soundboard WebSocket route into a Ktor [Application].
- *
- * @param audioEngine  handles play/stop/stopAll
- * @param registry     tracks active sessions for broadcasting
- * @param deviceName   reported back to clients in hello_ack (defaults to empty string so tests
- *                     don't need Android runtime; PlaybackService passes Build.MODEL)
- */
 fun Application.soundboardWebSocketModule(
     audioEngine: AudioEngine,
     registry: SessionRegistry,
     deviceName: String = "",
+    sounds: () -> List<SoundInfo> = { emptyList() },
+    lookupSound: suspend (soundId: String) -> SampleEntity? = { null },
+    playbackRepository: PlaybackRepository? = null,
 ) {
     install(WebSockets)
     routing {
         webSocket("/") {
             registry.add(this)
             try {
-                handleSoundboardSession(audioEngine, deviceName)
+                handleSoundboardSession(audioEngine, deviceName, sounds(), lookupSound, playbackRepository)
             } finally {
                 registry.remove(this)
             }
@@ -57,8 +59,11 @@ fun Application.soundboardWebSocketModule(
 internal suspend fun DefaultWebSocketServerSession.handleSoundboardSession(
     audioEngine: AudioEngine,
     deviceName: String,
+    sounds: List<SoundInfo> = emptyList(),
+    lookupSound: suspend (soundId: String) -> SampleEntity? = { null },
+    playbackRepository: PlaybackRepository? = null,
 ) {
-    // Expect hello as first frame
+    Log.d(TAG, "Client connected")
     val firstFrame = incoming.receive()
     if (firstFrame !is Frame.Text) return
 
@@ -69,114 +74,109 @@ internal suspend fun DefaultWebSocketServerSession.handleSoundboardSession(
     }
 
     if (firstMsg !is SoundboardMessage.Hello) {
-        send(
-            Frame.Text(
-                MessageProtocol.serialize(
-                    SoundboardMessage.Error(
-                        null,
-                        ErrorCode.UNKNOWN_MESSAGE,
-                        "Expected hello, got ${firstMsg.type}"
-                    )
-                )
-            )
-        )
+        send(Frame.Text(MessageProtocol.serialize(
+            SoundboardMessage.Error(null, ErrorCode.UNKNOWN_MESSAGE, "Expected hello, got ${firstMsg.type}")
+        )))
         return
     }
 
-    send(
-        Frame.Text(
-            MessageProtocol.serialize(
-                SoundboardMessage.HelloAck(
-                    deviceName = deviceName,
-                    version = com.soundboard.Constants.PROTOCOL_VERSION,
-                    sounds = emptyList(),
-                )
-            )
+    send(Frame.Text(MessageProtocol.serialize(
+        SoundboardMessage.HelloAck(
+            deviceName = deviceName,
+            version = com.soundboard.Constants.PROTOCOL_VERSION,
+            sounds = sounds,
         )
-    )
+    )))
 
-    for (frame in incoming) {
-        if (frame !is Frame.Text) continue
-        val msg = try {
-            MessageProtocol.deserialize(frame.readText())
-        } catch (e: Exception) {
-            send(
-                Frame.Text(
-                    MessageProtocol.serialize(
-                        SoundboardMessage.Error(
-                            null,
-                            ErrorCode.UNKNOWN_MESSAGE,
-                            e.message ?: "Parse error"
-                        )
-                    )
-                )
-            )
-            continue
-        }
+    try {
+        for (frame in incoming) {
+            if (frame !is Frame.Text) continue
+            val msg = try {
+                MessageProtocol.deserialize(frame.readText())
+            } catch (e: Exception) {
+                send(Frame.Text(MessageProtocol.serialize(
+                    SoundboardMessage.Error(null, ErrorCode.UNKNOWN_MESSAGE, e.message ?: "Parse error")
+                )))
+                continue
+            }
 
-        when (msg) {
-            is SoundboardMessage.Play -> {
-                audioEngine.play(
-                    soundId = msg.soundId,
-                    volume = msg.volume,
-                    handle = msg.handle,
-                    onStarted = {
-                        launch {
-                            send(
-                                Frame.Text(
-                                    MessageProtocol.serialize(
-                                        SoundboardMessage.Started(
-                                            handle = msg.handle,
-                                            soundId = msg.soundId,
-                                            soundName = msg.soundId,
-                                            durationMs = 0,
-                                        )
+            when (msg) {
+                is SoundboardMessage.Play -> {
+                    Log.d(TAG, "PLAY soundId=${msg.soundId} volume=${msg.volume} handle=${msg.handle}")
+                    val sample = lookupSound(msg.soundId)
+                    if (sample == null) {
+                        send(Frame.Text(MessageProtocol.serialize(
+                            SoundboardMessage.Error(msg.handle, ErrorCode.SOUND_NOT_FOUND, "Sound not found: ${msg.soundId}")
+                        )))
+                        continue
+                    }
+                    val ok = audioEngine.play(
+                        filePath = sample.filePath,
+                        soundName = sample.name,
+                        volume = msg.volume,
+                        loop = sample.loop,
+                        handle = msg.handle,
+                        onStarted = {
+                            launch {
+                                send(Frame.Text(MessageProtocol.serialize(
+                                    SoundboardMessage.Started(
+                                        handle = msg.handle,
+                                        soundId = msg.soundId,
+                                        soundName = sample.name,
+                                        durationMs = sample.durationMs,
                                     )
-                                )
-                            )
-                        }
-                    },
-                    onDone = { reason ->
-                        launch {
-                            send(
-                                Frame.Text(
-                                    MessageProtocol.serialize(
+                                )))
+                                playbackRepository?.add(ActivePlayback(
+                                    handle = msg.handle,
+                                    sampleId = msg.soundId,
+                                    sampleName = sample.name,
+                                    startedAt = System.currentTimeMillis(),
+                                    durationMs = sample.durationMs,
+                                ))
+                            }
+                        },
+                        onDone = { reason ->
+                            launch {
+                                runCatching {
+                                    send(Frame.Text(MessageProtocol.serialize(
                                         SoundboardMessage.Done(
                                             handle = msg.handle,
-                                            soundName = msg.soundId,
+                                            soundName = sample.name,
                                             reason = reason,
                                         )
-                                    )
-                                )
-                            )
-                        }
-                    }
-                )
-            }
-            is SoundboardMessage.Stop -> {
-                audioEngine.stop(msg.handle)
-            }
-            is SoundboardMessage.StopAll -> {
-                audioEngine.stopAll()
-            }
-            is SoundboardMessage.Ping -> {
-                send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.Pong)))
-            }
-            else -> {
-                send(
-                    Frame.Text(
-                        MessageProtocol.serialize(
-                            SoundboardMessage.Error(
-                                null,
-                                ErrorCode.UNKNOWN_MESSAGE,
-                                "Unknown type: ${msg.type}"
-                            )
-                        )
+                                    )))
+                                }
+                                playbackRepository?.remove(msg.handle)
+                            }
+                        },
                     )
-                )
+                    if (!ok) {
+                        send(Frame.Text(MessageProtocol.serialize(
+                            SoundboardMessage.Error(msg.handle, ErrorCode.PLAYBACK_FAILED, "Failed to play: ${sample.name}")
+                        )))
+                    }
+                }
+                is SoundboardMessage.Stop -> {
+                    Log.d(TAG, "STOP handle=${msg.handle}")
+                    audioEngine.stop(msg.handle)
+                }
+                is SoundboardMessage.StopAll -> {
+                    Log.d(TAG, "STOP_ALL")
+                    audioEngine.stopAll()
+                }
+                is SoundboardMessage.Ping -> {
+                    send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.Pong)))
+                }
+                else -> {
+                    send(Frame.Text(MessageProtocol.serialize(
+                        SoundboardMessage.Error(null, ErrorCode.UNKNOWN_MESSAGE, "Unknown type: ${msg.type}")
+                    )))
+                }
             }
         }
+    } finally {
+        Log.d(TAG, "Client disconnected")
+        audioEngine.fireConnectionLost()
+        playbackRepository?.clear()
     }
-
-    audioEngine.fireConnectionLost()
 }

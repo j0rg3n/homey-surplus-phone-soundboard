@@ -1,19 +1,23 @@
 package com.soundboard.data
 
 import java.io.File
+import java.io.InputStream
 
 class FileStore(private val soundsDir: File) {
     init {
         soundsDir.mkdirs()
     }
 
-    /**
-     * Copies [sourceFile] into soundsDir/<id>.<ext> and returns the destination absolute path.
-     */
     fun importFile(id: String, sourceFile: File): String {
         val ext = sourceFile.extension
         val dest = File(soundsDir, "$id.$ext")
         sourceFile.copyTo(dest, overwrite = true)
+        return dest.absolutePath
+    }
+
+    fun importStream(id: String, inputStream: InputStream, ext: String): String {
+        val dest = File(soundsDir, "$id.$ext")
+        inputStream.use { it.copyTo(dest.outputStream()) }
         return dest.absolutePath
     }
 

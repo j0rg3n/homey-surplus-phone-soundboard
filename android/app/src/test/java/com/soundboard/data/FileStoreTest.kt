@@ -105,4 +105,24 @@ class FileStoreTest {
         val path = store.pathFor("no-create", "wav")
         assertFalse("pathFor should not create the file", File(path).exists())
     }
+
+    @Test
+    fun `importStream writes stream contents to soundsDir with correct extension`() {
+        val data = byteArrayOf(10, 20, 30, 40)
+        val destPath = store.importStream("stream-id", data.inputStream(), "wav")
+
+        val destFile = File(destPath)
+        assertTrue("Destination file should exist", destFile.exists())
+        assertEquals(data.toList(), destFile.readBytes().toList())
+        assertTrue("Path should be inside soundsDir", destPath.startsWith(soundsDir.absolutePath))
+        assertTrue("Path should contain the id", destPath.contains("stream-id"))
+        assertTrue("Path should end with .wav", destPath.endsWith(".wav"))
+    }
+
+    @Test
+    fun `importStream overwrites existing file with same id`() {
+        store.importStream("same-id", byteArrayOf(1, 2, 3).inputStream(), "mp3")
+        val destPath = store.importStream("same-id", byteArrayOf(99).inputStream(), "mp3")
+        assertEquals(listOf<Byte>(99), File(destPath).readBytes().toList())
+    }
 }

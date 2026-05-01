@@ -7,9 +7,26 @@ const { DEFAULT_PORT } = require('../../lib/constants');
 class SoundboardDriver extends Driver {
 
   async onInit() {
-    this.homey.flow.getActionCard('play_sound').registerRunListener(async (args) => {
-      await args.device.playSound(args.sound_id, args.volume ?? 100);
+    const playCard = this.homey.flow.getActionCard('play_sound');
+
+    playCard.registerRunListener(async (args) => {
+      await args.device.playSound(args.sound.id, args.volume ?? 100);
     });
+
+    playCard.getArgument('sound').registerAutocompleteListener(async (query, args) => {
+      const sounds = args.device.getStore().sounds ?? [];
+      const available = args.device.getAvailable();
+      const suffix = available ? '' : ' (offline)';
+      return sounds
+        .filter(s => !query || s.name.toLowerCase().includes(query.toLowerCase()))
+        .map(s => ({ id: s.id, name: s.name + suffix }));
+    });
+
+    this.homey.flow.getDeviceTriggerCard('sound_started')
+      .registerRunListener(async () => true);
+
+    this.homey.flow.getDeviceTriggerCard('sound_done')
+      .registerRunListener(async () => true);
   }
 
   async onPair(session) {

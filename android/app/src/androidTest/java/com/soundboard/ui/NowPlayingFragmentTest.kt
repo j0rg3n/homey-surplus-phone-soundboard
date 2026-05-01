@@ -24,4 +24,10 @@ class NowPlayingFragmentTest {
         launchFragment<NowPlayingFragment>()
         onView(withText(R.string.no_sounds_playing)).check(matches(isDisplayed()))
     }
+
+    @Test
+    fun recyclerViewNotVisibleWhenEmpty() {
+        launchFragment<NowPlayingFragment>()
+        onView(withText(R.string.no_sounds_playing)).check(matches(isDisplayed()))
+    }
 }

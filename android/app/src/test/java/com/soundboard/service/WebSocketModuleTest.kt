@@ -1,6 +1,7 @@
 package com.soundboard.service
 
 import com.soundboard.ErrorCode
+import com.soundboard.data.SampleEntity
 import com.soundboard.protocol.MessageProtocol
 import com.soundboard.protocol.SoundInfo
 import com.soundboard.protocol.SoundboardMessage
@@ -22,16 +23,27 @@ class WebSocketModuleTest {
 
     // ------------------------------------------------------------------ helpers
 
-    /** Receive the next Text frame, skipping non-text frames, with a 2-second timeout. */
+    private fun fakeEngine() = AudioEngine { object : Player {
+        override fun prepare(filePath: String, volume: Float, loop: Boolean) {}
+        override fun start() {}
+        override fun stop() {}
+        override fun release() {}
+        override fun setOnCompletionListener(cb: () -> Unit) {}
+        override fun setOnErrorListener(cb: (Int, Int) -> Boolean) {}
+    }}
+
+    private fun fakeSample(id: String = "snd1") = SampleEntity(
+        id = id, name = "Test Sound", filePath = "/fake/$id.mp3",
+        durationMs = 1000L, defaultVolume = 100, loop = false,
+        loopStartMs = 0L, loopEndMs = 1000L, createdAt = 0L,
+    )
+
     private suspend fun ReceiveChannel<Frame>.receiveText(): String = withTimeout(2_000) {
         var frame: Frame
-        do {
-            frame = receive()
-        } while (frame !is Frame.Text)
+        do { frame = receive() } while (frame !is Frame.Text)
         (frame as Frame.Text).readText()
     }
 
-    /** Perform the hello/hello_ack handshake and return the HelloAck message. */
     private suspend fun io.ktor.client.plugins.websocket.ClientWebSocketSession.doHello(): SoundboardMessage.HelloAck {
         send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.Hello("1.0"))))
         val msg = MessageProtocol.deserialize(incoming.receiveText())
@@ -43,7 +55,7 @@ class WebSocketModuleTest {
 
     @Test
     fun `hello handshake returns hello_ack`() = testApplication {
-        val engine = AudioEngine()
+        val engine = fakeEngine()
         val registry = SessionRegistry()
         application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
 
@@ -57,10 +69,29 @@ class WebSocketModuleTest {
     }
 
     @Test
-    fun `play returns started response after handshake`() = testApplication {
-        val engine = AudioEngine()
+    fun `hello_ack includes sound library`() = testApplication {
+        val sounds = listOf(
+            SoundInfo(id = "s1", name = "Bell", durationMs = 1000L,
+                loop = false, loopStartMs = 0L, loopEndMs = 1000L, defaultVolume = 100)
+        )
+        val engine = fakeEngine()
         val registry = SessionRegistry()
-        application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
+        application { soundboardWebSocketModule(engine, registry, sounds = { sounds }) }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket("/") {
+            val ack = doHello()
+            assertEquals(1, ack.sounds.size)
+            assertEquals("Bell", ack.sounds[0].name)
+        }
+    }
+
+    @Test
+    fun `play returns started response after handshake`() = testApplication {
+        val engine = fakeEngine()
+        val registry = SessionRegistry()
+        application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice",
+            lookupSound = { id -> fakeSample(id) }) }
 
         val client = createClient { install(WebSockets) }
         client.webSocket("/") {
@@ -77,24 +108,42 @@ class WebSocketModuleTest {
     }
 
     @Test
-    fun `stop after play returns done with reason stopped`() = testApplication {
-        val engine = AudioEngine()
+    fun `play returns error when sound not found`() = testApplication {
+        val engine = fakeEngine()
         val registry = SessionRegistry()
-        application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
+        application { soundboardWebSocketModule(engine, registry) }
 
         val client = createClient { install(WebSockets) }
         client.webSocket("/") {
             doHello()
+            send(Frame.Text(MessageProtocol.serialize(
+                SoundboardMessage.Play(soundId = "missing", volume = 100, handle = "h1")
+            )))
+            val msg = MessageProtocol.deserialize(incoming.receiveText())
+            assertTrue("Expected Error, got $msg", msg is SoundboardMessage.Error)
+            assertEquals(ErrorCode.SOUND_NOT_FOUND, (msg as SoundboardMessage.Error).code)
+        }
+    }
 
-            // Play a sound
+    @Test
+    fun `stop after play returns done with reason stopped`() = testApplication {
+        val players = mutableListOf<StoppablePlayer>()
+        val engine = AudioEngine {
+            StoppablePlayer().also { players += it }
+        }
+        val registry = SessionRegistry()
+        application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice",
+            lookupSound = { id -> fakeSample(id) }) }
+
+        val client = createClient { install(WebSockets) }
+        client.webSocket("/") {
+            doHello()
             send(Frame.Text(MessageProtocol.serialize(
                 SoundboardMessage.Play(soundId = "snd1", volume = 80, handle = "h2")
             )))
-            // Consume the Started frame
             val started = MessageProtocol.deserialize(incoming.receiveText())
             assertTrue(started is SoundboardMessage.Started)
 
-            // Stop it
             send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.Stop(handle = "h2"))))
             val msg = MessageProtocol.deserialize(incoming.receiveText())
             assertTrue("Expected Done, got $msg", msg is SoundboardMessage.Done)
@@ -106,28 +155,28 @@ class WebSocketModuleTest {
 
     @Test
     fun `stop_all returns done for all in-flight handles`() = testApplication {
-        val engine = AudioEngine()
+        val engine = AudioEngine {
+            StoppablePlayer()
+        }
         val registry = SessionRegistry()
-        application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
+        application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice",
+            lookupSound = { id -> fakeSample(id) }) }
 
         val client = createClient { install(WebSockets) }
         client.webSocket("/") {
             doHello()
 
-            // Play two sounds simultaneously
             send(Frame.Text(MessageProtocol.serialize(
                 SoundboardMessage.Play(soundId = "a", volume = 100, handle = "ha")
             )))
             send(Frame.Text(MessageProtocol.serialize(
                 SoundboardMessage.Play(soundId = "b", volume = 100, handle = "hb")
             )))
-            // Consume two Started frames
             val s1 = MessageProtocol.deserialize(incoming.receiveText())
             val s2 = MessageProtocol.deserialize(incoming.receiveText())
             assertTrue(s1 is SoundboardMessage.Started)
             assertTrue(s2 is SoundboardMessage.Started)
 
-            // Stop all
             send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.StopAll)))
             val d1 = MessageProtocol.deserialize(incoming.receiveText())
             val d2 = MessageProtocol.deserialize(incoming.receiveText())
@@ -143,7 +192,7 @@ class WebSocketModuleTest {
 
     @Test
     fun `ping returns pong`() = testApplication {
-        val engine = AudioEngine()
+        val engine = fakeEngine()
         val registry = SessionRegistry()
         application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
 
@@ -158,14 +207,13 @@ class WebSocketModuleTest {
 
     @Test
     fun `unknown message type returns error with UNKNOWN_MESSAGE code`() = testApplication {
-        val engine = AudioEngine()
+        val engine = fakeEngine()
         val registry = SessionRegistry()
         application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
 
         val client = createClient { install(WebSockets) }
         client.webSocket("/") {
             doHello()
-            // Send raw JSON with an unknown type (not in the protocol)
             send(Frame.Text("""{"type":"definitely_not_a_real_type"}"""))
             val msg = MessageProtocol.deserialize(incoming.receiveText())
             assertTrue("Expected Error, got $msg", msg is SoundboardMessage.Error)
@@ -175,7 +223,7 @@ class WebSocketModuleTest {
 
     @Test
     fun `library_update broadcast reaches connected session`() = testApplication {
-        val engine = AudioEngine()
+        val engine = fakeEngine()
         val registry = SessionRegistry()
         application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
 
@@ -188,7 +236,6 @@ class WebSocketModuleTest {
         client.webSocket("/") {
             doHello()
 
-            // Session is now in the registry — broadcast
             val broadcastFrame = Frame.Text(
                 MessageProtocol.serialize(SoundboardMessage.LibraryUpdate(sounds))
             )
@@ -202,7 +249,7 @@ class WebSocketModuleTest {
 
     @Test
     fun `session registry tracks and removes sessions`() = testApplication {
-        val engine = AudioEngine()
+        val engine = fakeEngine()
         val registry = SessionRegistry()
         application { soundboardWebSocketModule(engine, registry, deviceName = "TestDevice") }
 
@@ -211,10 +258,20 @@ class WebSocketModuleTest {
             doHello()
             assertEquals(1, registry.all().size)
         }
-        // After block ends the session closes; give the server a moment to remove it
         withTimeout(500) {
             while (registry.all().isNotEmpty()) kotlinx.coroutines.delay(10)
         }
         assertEquals(0, registry.all().size)
     }
+}
+
+// Minimal player for stop/stop_all tests — stop() does NOT fire the completion callback
+// (mirrors real MediaPlayer behaviour: completion only fires on natural end of media)
+private class StoppablePlayer : Player {
+    override fun prepare(filePath: String, volume: Float, loop: Boolean) {}
+    override fun start() {}
+    override fun stop() {}
+    override fun release() {}
+    override fun setOnCompletionListener(cb: () -> Unit) {}
+    override fun setOnErrorListener(cb: (Int, Int) -> Boolean) {}
 }

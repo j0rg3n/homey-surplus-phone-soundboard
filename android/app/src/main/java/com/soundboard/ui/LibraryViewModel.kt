@@ -1,5 +1,7 @@
 package com.soundboard.ui
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.soundboard.data.SampleEntity
@@ -11,6 +13,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -31,6 +34,14 @@ class LibraryViewModel @Inject constructor(
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
+    }
+
+    fun importUris(context: Context, uris: List<Uri>) {
+        viewModelScope.launch {
+            uris.forEach { uri ->
+                runCatching { sampleRepository.importFromUri(context, uri) }
+            }
+        }
     }
 
     suspend fun deleteSample(sample: SampleEntity) {

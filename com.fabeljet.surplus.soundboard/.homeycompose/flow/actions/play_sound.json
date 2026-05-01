@@ -1,8 +1,7 @@
 {
   "id": "play_sound",
-  "title": {
-    "en": "Play a sound"
-  },
+  "title": { "en": "Play a sound" },
+  "titleFormatted": { "en": "Play [[sound]] at volume [[volume]]" },
   "args": [
     {
       "name": "device",
@@ -10,11 +9,9 @@
       "filter": "driver_id=soundboard"
     },
     {
-      "name": "sound_id",
-      "type": "text",
-      "placeholder": {
-        "en": "Sound ID"
-      }
+      "name": "sound",
+      "type": "autocomplete",
+      "placeholder": { "en": "Search sounds…" }
     },
     {
       "name": "volume",
@@ -22,9 +19,7 @@
       "min": 0,
       "max": 400,
       "step": 1,
-      "placeholder": {
-        "en": "100"
-      }
+      "placeholder": { "en": "100" }
     }
   ]
 }

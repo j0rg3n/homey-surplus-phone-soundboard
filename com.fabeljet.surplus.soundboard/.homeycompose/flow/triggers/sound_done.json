@@ -1,11 +1,17 @@
 {
   "id": "sound_done",
   "title": { "en": "A sound finished" },
+  "titleFormatted": { "en": "A sound finished on [[device]]" },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=soundboard"
+    }
+  ],
   "tokens": [
     { "name": "sound_name", "type": "string", "title": { "en": "Sound name" } },
     { "name": "handle", "type": "string", "title": { "en": "Handle" } },
     { "name": "reason", "type": "string", "title": { "en": "Reason" } }
-  ],
-  "device": true,
-  "filter": "driver_id=soundboard"
+  ]
 }

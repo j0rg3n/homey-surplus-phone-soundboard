@@ -29,11 +29,94 @@
     "email": "jorgen@fabeljet.com"
   },
   "flow": {
+    "triggers": [
+      {
+        "id": "sound_done",
+        "title": {
+          "en": "A sound finished"
+        },
+        "titleFormatted": {
+          "en": "A sound finished on [[device]]"
+        },
+        "args": [
+          {
+            "type": "device",
+            "name": "device",
+            "filter": "driver_id=soundboard"
+          }
+        ],
+        "tokens": [
+          {
+            "name": "sound_name",
+            "type": "string",
+            "title": {
+              "en": "Sound name"
+            }
+          },
+          {
+            "name": "handle",
+            "type": "string",
+            "title": {
+              "en": "Handle"
+            }
+          },
+          {
+            "name": "reason",
+            "type": "string",
+            "title": {
+              "en": "Reason"
+            }
+          }
+        ]
+      },
+      {
+        "id": "sound_started",
+        "title": {
+          "en": "A sound started playing"
+        },
+        "titleFormatted": {
+          "en": "A sound started playing on [[device]]"
+        },
+        "args": [
+          {
+            "type": "device",
+            "name": "device",
+            "filter": "driver_id=soundboard"
+          }
+        ],
+        "tokens": [
+          {
+            "name": "sound_name",
+            "type": "string",
+            "title": {
+              "en": "Sound name"
+            }
+          },
+          {
+            "name": "handle",
+            "type": "string",
+            "title": {
+              "en": "Handle"
+            }
+          },
+          {
+            "name": "duration_ms",
+            "type": "number",
+            "title": {
+              "en": "Duration (ms)"
+            }
+          }
+        ]
+      }
+    ],
     "actions": [
       {
         "id": "play_sound",
         "title": {
           "en": "Play a sound"
+        },
+        "titleFormatted": {
+          "en": "Play [[sound]] at volume [[volume]]"
         },
         "args": [
           {
@@ -42,10 +125,10 @@
             "filter": "driver_id=soundboard"
           },
           {
-            "name": "sound_id",
-            "type": "text",
+            "name": "sound",
+            "type": "autocomplete",
             "placeholder": {
-              "en": "Sound ID"
+              "en": "Search sounds…"
             }
           },
           {

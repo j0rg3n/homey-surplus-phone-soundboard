@@ -1,11 +1,17 @@
 {
   "id": "sound_started",
   "title": { "en": "A sound started playing" },
+  "titleFormatted": { "en": "A sound started playing on [[device]]" },
+  "args": [
+    {
+      "type": "device",
+      "name": "device",
+      "filter": "driver_id=soundboard"
+    }
+  ],
   "tokens": [
     { "name": "sound_name", "type": "string", "title": { "en": "Sound name" } },
     { "name": "handle", "type": "string", "title": { "en": "Handle" } },
     { "name": "duration_ms", "type": "number", "title": { "en": "Duration (ms)" } }
-  ],
-  "device": true,
-  "filter": "driver_id=soundboard"
+  ]
 }

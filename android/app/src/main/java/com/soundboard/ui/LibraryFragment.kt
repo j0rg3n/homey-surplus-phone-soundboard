@@ -34,9 +34,14 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
     private val importLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
     ) { result ->
-        if (result.resultCode == Activity.RESULT_OK && result.data != null) {
-            // TODO: implement file import via SampleRepository in a future group
-            // Selected URIs available via result.data?.clipData (multi) or result.data?.data (single)
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data ?: return@registerForActivityResult
+            val uris = if (data.clipData != null) {
+                (0 until data.clipData!!.itemCount).map { data.clipData!!.getItemAt(it).uri }
+            } else {
+                listOfNotNull(data.data)
+            }
+            if (uris.isNotEmpty()) viewModel.importUris(requireContext(), uris)
         }
     }
 

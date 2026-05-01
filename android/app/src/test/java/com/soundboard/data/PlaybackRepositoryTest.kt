@@ -134,4 +134,30 @@ class PlaybackRepositoryTest {
         val map = repo.active.first()
         assertEquals(0L, map["loop-h"]?.durationMs)
     }
+
+    @Test
+    fun `requestStop emits handle to stopRequests flow`() = runTest {
+        val collected = mutableListOf<String>()
+        val job = launch { repo.stopRequests.collect { collected += it } }
+
+        repo.requestStop("h-stop")
+        kotlinx.coroutines.delay(50)
+        job.cancel()
+
+        assertTrue("requestStop should emit the handle", "h-stop" in collected)
+    }
+
+    @Test
+    fun `requestStop with multiple handles emits all`() = runTest {
+        val collected = mutableListOf<String>()
+        val job = launch { repo.stopRequests.collect { collected += it } }
+
+        repo.requestStop("h1")
+        repo.requestStop("h2")
+        repo.requestStop("h3")
+        kotlinx.coroutines.delay(50)
+        job.cancel()
+
+        assertEquals(listOf("h1", "h2", "h3"), collected)
+    }
 }
