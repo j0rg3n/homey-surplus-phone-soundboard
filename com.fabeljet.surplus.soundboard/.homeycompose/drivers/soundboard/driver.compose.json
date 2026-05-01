@@ -1,0 +1,23 @@
+{
+  "name": {
+    "en": "Soundboard Device"
+  },
+  "class": "speaker",
+  "capabilities": [
+    "speaker_playing"
+  ],
+  "platforms": [
+    "local"
+  ],
+  "connectivity": [
+    "lan"
+  ],
+  "pair": [
+    {
+      "id": "start",
+      "navigation": {
+        "next": "done"
+      }
+    }
+  ]
+}

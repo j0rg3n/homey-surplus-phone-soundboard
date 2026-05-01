@@ -24,5 +24,8 @@
       "lib/**/*.js",
       "drivers/**/*.js"
     ]
+  },
+  "dependencies": {
+    "ws": "^8.20.0"
   }
 }

@@ -27,5 +27,65 @@
   "author": {
     "name": "Jørgen Seland",
     "email": "jorgen@fabeljet.com"
+  },
+  "drivers": [
+    {
+      "id": "soundboard",
+      "name": {
+        "en": "Soundboard Device"
+      },
+      "class": "speaker",
+      "capabilities": [
+        "speaker_playing"
+      ],
+      "platforms": [
+        "local"
+      ],
+      "connectivity": [
+        "lan"
+      ],
+      "pair": [
+        {
+          "id": "start",
+          "navigation": {
+            "next": "done"
+          }
+        }
+      ]
+    }
+  ],
+  "flow": {
+    "actions": [
+      {
+        "id": "play_sound",
+        "title": {
+          "en": "Play a sound"
+        },
+        "args": [
+          {
+            "name": "device",
+            "type": "device",
+            "filter": "driver_id=soundboard"
+          },
+          {
+            "name": "sound_id",
+            "type": "text",
+            "placeholder": {
+              "en": "Sound ID"
+            }
+          },
+          {
+            "name": "volume",
+            "type": "number",
+            "min": 0,
+            "max": 400,
+            "step": 1,
+            "placeholder": {
+              "en": "100"
+            }
+          }
+        ]
+      }
+    ]
   }
 }

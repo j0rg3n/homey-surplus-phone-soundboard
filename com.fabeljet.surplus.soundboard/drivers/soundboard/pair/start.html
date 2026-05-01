@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pair Surplus Soundboard</title>
+  <style>
+    * { box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; color: #333; }
+    h2 { margin: 0 0 8px; font-size: 18px; }
+    p.hint { margin: 0 0 20px; font-size: 13px; color: #666; }
+    label { display: block; margin-bottom: 16px; font-size: 14px; font-weight: 500; }
+    input { display: block; width: 100%; margin-top: 4px; padding: 8px 10px; font-size: 14px;
+            border: 1px solid #ccc; border-radius: 6px; }
+    button { display: block; width: 100%; padding: 10px; font-size: 14px; font-weight: 600;
+             background: #6C5CE7; color: #fff; border: none; border-radius: 6px; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { margin-top: 14px; font-size: 13px; color: #c00; min-height: 18px; }
+  </style>
+</head>
+<body>
+  <h2>Connect to Android device</h2>
+  <p class="hint">Open the Surplus Soundboard app on your Android device, then enter its local IP address below.</p>
+
+  <label>
+    IP address
+    <input id="ip" type="text" placeholder="192.168.1.100" autocomplete="off" />
+  </label>
+  <label>
+    Port
+    <input id="port" type="number" value="8765" min="1" max="65535" />
+  </label>
+
+  <button id="btn" onclick="connect()">Connect</button>
+  <div id="status"></div>
+
+  <script>
+    async function connect() {
+      const ip = document.getElementById('ip').value.trim();
+      const port = parseInt(document.getElementById('port').value, 10) || 8765;
+      const btn = document.getElementById('btn');
+      const status = document.getElementById('status');
+
+      if (!ip) { status.textContent = 'Enter the IP address of your Android device.'; return; }
+
+      btn.disabled = true;
+      status.textContent = 'Connecting…';
+
+      try {
+        const result = await Homey.emit('connect', { ip, port });
+        await Homey.createDevice({
+          name: result.deviceName,
+          data: { id: ip + ':' + port },
+          store: { ip, port },
+        });
+        Homey.done();
+      } catch (err) {
+        status.textContent = 'Could not connect: ' + err.message;
+        btn.disabled = false;
+      }
+    }
+  </script>
+</body>
+</html>
