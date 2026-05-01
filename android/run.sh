@@ -3,27 +3,53 @@ set -e
 
 PACKAGE="com.soundboard"
 ACTIVITY="$PACKAGE/.ui.MainActivity"
+APK="app/build/outputs/apk/debug/app-debug.apk"
 
 cd "$(dirname "$0")"
 
-echo "▶  Building and installing..."
-./gradlew installDebug -q
+SERIAL=$(adb get-serialno 2>/dev/null || true)
+if [ -z "$SERIAL" ] || [ "$SERIAL" = "unknown" ]; then
+  echo "⚠  No device found. Connect via USB or: adb connect <ip>"
+  exit 1
+fi
+echo "▶  Device: $SERIAL"
 
-echo "▶  Clearing logcat buffer..."
-adb logcat -c
+_adb() { adb -s "$SERIAL" "$@"; }
 
-echo "▶  Launching $PACKAGE..."
-adb shell am force-stop "$PACKAGE"
-adb shell am start -n "$ACTIVITY"
+_reconnect() {
+  [[ "$SERIAL" != *:* ]] && return 0
+  for i in $(seq 1 10); do
+    if adb connect "$SERIAL" 2>&1 | grep -q "connected"; then return 0; fi
+    sleep 1
+  done
+  echo "⚠  Could not reconnect to $SERIAL after 10s" && exit 1
+}
 
-sleep 1
+echo "▶  Building..."
+./gradlew assembleDebug -q
 
-PID=$(adb shell pidof -s "$PACKAGE" 2>/dev/null || true)
+echo "▶  Installing..."
+_reconnect
+_adb push "$APK" /data/local/tmp/app.apk
+_reconnect
+_adb shell pm install -r /data/local/tmp/app.apk
+
+echo "▶  Launching..."
+sleep 2 && _reconnect
+_adb logcat -c
+_reconnect
+_adb shell am force-stop "$PACKAGE"
+_reconnect
+_adb shell am start -n "$ACTIVITY"
+
+sleep 2 && _reconnect
+
+PID=$(_adb shell pidof -s "$PACKAGE" 2>/dev/null || true)
 if [ -z "$PID" ]; then
   echo "⚠  App did not start — showing crash output and exiting"
-  adb logcat -d -v time "*:E"
+  _adb logcat -d -v time "*:E"
   exit 1
 fi
 
 echo "▶  PID $PID — streaming logs (Ctrl+C to stop)"
-exec adb logcat -v time --pid="$PID"
+exec adb -s "$SERIAL" logcat -v time --pid="$PID"
