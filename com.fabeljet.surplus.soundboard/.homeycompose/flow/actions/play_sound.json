@@ -21,5 +21,13 @@
       "step": 1,
       "placeholder": { "en": "100" }
     }
+  ],
+  "tokens": [
+    {
+      "name": "handle",
+      "type": "string",
+      "title": { "en": "Handle" },
+      "example": "550e8400-e29b-41d4-a716-446655440000"
+    }
   ]
 }

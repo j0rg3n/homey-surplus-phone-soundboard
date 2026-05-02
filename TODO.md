@@ -53,9 +53,9 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 6 — Pairing + Settings + Flow Cards
 *Depends on Group 5. Items parallelisable.*
 
-- [ ] **6.1** Implement `drivers/soundboard/driver.js` pairing flow per SPEC §8.1: custom pairing view with IP/port input, connect attempt, `hello`/`hello_ack` handshake, error + retry on timeout. Playwright tests: happy path, timeout error shown, retry works.
+- [x] **6.1** Implement `drivers/soundboard/driver.js` pairing flow per SPEC §8.1: custom pairing view with IP/port input, connect attempt, `hello`/`hello_ack` handshake, error + retry on timeout. Playwright tests: happy path, timeout error shown, retry works.
 - [ ] **6.2** Implement Android Settings screen per SPEC §5.5: device name field, port field in Advanced section, developer tips expandable section with step-by-step instructions. Espresso tests: name saves to shared prefs, port change restarts server on save, developer tips section expands/collapses.
-- [ ] **6.3** Implement all Homey Flow trigger, condition, and action cards per SPEC §8.4. Tests: `play_sound` action sends correct message and sets handle tag, `stop_sound` sends stop with handle, `stop_all` sends stop_all, `sound_is_playing` condition checks handle store, `set_volume` sends correct volume mapping.
+- [x] **6.3** Implement all Homey Flow trigger, condition, and action cards per SPEC §8.4. Tests: `play_sound` action sends correct message and sets handle tag, `stop_sound` sends stop with handle, `stop_all` sends stop_all, `sound_is_playing` condition checks handle store, `set_volume` sends correct volume mapping.
 
 ---
 

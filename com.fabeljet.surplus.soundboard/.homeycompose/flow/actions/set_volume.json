@@ -1,0 +1,20 @@
+{
+  "id": "set_volume",
+  "title": { "en": "Set global volume" },
+  "titleFormatted": { "en": "Set volume to [[volume]] on [[device]]" },
+  "args": [
+    {
+      "name": "device",
+      "type": "device",
+      "filter": "driver_id=soundboard"
+    },
+    {
+      "name": "volume",
+      "type": "number",
+      "min": 0,
+      "max": 400,
+      "step": 1,
+      "placeholder": { "en": "100" }
+    }
+  ]
+}

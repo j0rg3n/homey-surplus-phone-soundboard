@@ -51,9 +51,30 @@ class SoundboardDevice extends Device {
   }
 
   async playSound(soundId, volume) {
+    const effectiveVolume = volume ?? (this.getStore().globalVolume ?? 100);
     const handle = randomUUID();
-    await this._client.send({ type: MSG.PLAY, soundId, volume, handle });
+    await this._client.send({ type: MSG.PLAY, soundId, volume: effectiveVolume, handle });
     return handle;
+  }
+
+  async stopSound(handle) {
+    await this._client.send({ type: MSG.STOP, handle });
+  }
+
+  async stopAll() {
+    await this._client.send({ type: MSG.STOP_ALL });
+  }
+
+  async setGlobalVolume(volume) {
+    await this.setStoreValue('globalVolume', volume);
+  }
+
+  isAnySoundPlaying() {
+    return this._handles.getAll().length > 0;
+  }
+
+  isSoundPlaying(soundName) {
+    return this._handles.isPlaying(soundName);
   }
 
   _handleMessage(msg) {

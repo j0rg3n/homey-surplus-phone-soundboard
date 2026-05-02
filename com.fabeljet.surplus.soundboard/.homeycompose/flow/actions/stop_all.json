@@ -1,0 +1,12 @@
+{
+  "id": "stop_all",
+  "title": { "en": "Stop all sounds" },
+  "titleFormatted": { "en": "Stop all sounds on [[device]]" },
+  "args": [
+    {
+      "name": "device",
+      "type": "device",
+      "filter": "driver_id=soundboard"
+    }
+  ]
+}

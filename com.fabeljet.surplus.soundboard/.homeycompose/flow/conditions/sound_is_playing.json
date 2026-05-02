@@ -1,0 +1,17 @@
+{
+  "id": "sound_is_playing",
+  "title": { "en": "A sound is currently playing" },
+  "titleFormatted": { "en": "[[sound]] is playing on [[device]]" },
+  "args": [
+    {
+      "name": "device",
+      "type": "device",
+      "filter": "driver_id=soundboard"
+    },
+    {
+      "name": "sound",
+      "type": "autocomplete",
+      "placeholder": { "en": "Select a sound…" }
+    }
+  ]
+}

@@ -5,9 +5,11 @@
     "build": "tsc",
     "test": "jest",
     "coverage": "jest --coverage",
+    "test:e2e": "playwright test",
     "lint": "eslint --ext .js,.ts --ignore-path .gitignore ."
   },
   "devDependencies": {
+    "@playwright/test": "^1.59.1",
     "@tsconfig/node16": "^16.1.8",
     "@types/homey": "npm:homey-apps-sdk-v3-types",
     "@types/node": "^18",
@@ -19,6 +21,7 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "testPathIgnorePatterns": ["/node_modules/", "/test/e2e/"],
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "lib/**/*.js",

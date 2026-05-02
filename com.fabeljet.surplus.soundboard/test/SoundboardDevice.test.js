@@ -35,7 +35,7 @@ function createDevice() {
   const storeValues = {};
   let mockClient;
 
-  device.getStore = () => ({ ip: '127.0.0.1', port: 8765 });
+  device.getStore = () => ({ ip: '127.0.0.1', port: 8765, ...storeValues });
   device.setCapabilityValue = jest.fn(async (cap, val) => { capabilities[cap] = val; });
   device.setStoreValue = jest.fn(async (key, val) => { storeValues[key] = val; });
   device.getStoreValue = (key) => storeValues[key];
@@ -257,6 +257,98 @@ describe('SoundboardDevice', () => {
       const handle = await device.playSound('ding', 50);
       const msg = getMockClient().getLastSentMessage();
       expect(handle).toBe(msg.handle);
+    });
+
+    it('uses globalVolume from store when no volume arg is given', async () => {
+      const { device, getMockClient, storeValues } = createDevice();
+      await device.onInit();
+      storeValues.globalVolume = 200;
+      await device.playSound('bell');
+      const msg = getMockClient().getLastSentMessage();
+      expect(msg.volume).toBe(200);
+    });
+
+    it('uses 100 as fallback when no globalVolume stored', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      await device.playSound('bell');
+      const msg = getMockClient().getLastSentMessage();
+      expect(msg.volume).toBe(100);
+    });
+  });
+
+  describe('stopSound', () => {
+    it('sends a STOP message with the given handle', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      await device.stopSound('my-handle-123');
+      const msg = getMockClient().getLastSentMessage();
+      expect(msg).toEqual({ type: MSG.STOP, handle: 'my-handle-123' });
+    });
+  });
+
+  describe('stopAll', () => {
+    it('sends a STOP_ALL message', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      await device.stopAll();
+      const msg = getMockClient().getLastSentMessage();
+      expect(msg).toEqual({ type: MSG.STOP_ALL });
+    });
+  });
+
+  describe('setGlobalVolume', () => {
+    it('stores the volume in device store', async () => {
+      const { device } = createDevice();
+      await device.onInit();
+      await device.setGlobalVolume(250);
+      expect(device.setStoreValue).toHaveBeenCalledWith('globalVolume', 250);
+    });
+  });
+
+  describe('isAnySoundPlaying', () => {
+    it('returns false when no sounds are active', async () => {
+      const { device } = createDevice();
+      await device.onInit();
+      expect(device.isAnySoundPlaying()).toBe(false);
+    });
+
+    it('returns true when at least one sound is active', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'a', soundName: 'A', durationMs: 1000 });
+      expect(device.isAnySoundPlaying()).toBe(true);
+    });
+
+    it('returns false after all sounds finish', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'a', soundName: 'A', durationMs: 1000 });
+      getMockClient().simulateMessage({ type: MSG.DONE, handle: 'h1', soundName: 'A', reason: 'completed' });
+      expect(device.isAnySoundPlaying()).toBe(false);
+    });
+  });
+
+  describe('isSoundPlaying', () => {
+    it('returns false when the named sound is not active', async () => {
+      const { device } = createDevice();
+      await device.onInit();
+      expect(device.isSoundPlaying('Drum')).toBe(false);
+    });
+
+    it('returns true when the named sound is active', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'drum', soundName: 'Drum', durationMs: 2000 });
+      expect(device.isSoundPlaying('Drum')).toBe(true);
+    });
+
+    it('returns false after sound finishes', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'drum', soundName: 'Drum', durationMs: 2000 });
+      getMockClient().simulateMessage({ type: MSG.DONE, handle: 'h1', soundName: 'Drum', reason: 'completed' });
+      expect(device.isSoundPlaying('Drum')).toBe(false);
     });
   });
 
