@@ -13,4 +13,10 @@
         android:id="@+id/libraryFragment"
         android:name="com.soundboard.ui.LibraryFragment"
         android:label="@string/library" />
+
+    <fragment
+        android:id="@+id/settingsFragment"
+        android:name="com.soundboard.ui.SettingsFragment"
+        android:label="@string/settings" />
+
 </navigation>

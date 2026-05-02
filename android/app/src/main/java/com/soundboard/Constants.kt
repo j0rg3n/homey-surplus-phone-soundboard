@@ -8,6 +8,10 @@ object Constants {
     const val RECONNECT_MAX_MS = 30_000L
     const val HELLO_TIMEOUT_MS = 5_000L
     const val PROTOCOL_VERSION = "1.0"
+
+    const val SETTINGS_PREFS = "soundboard_settings"
+    const val PREF_DEVICE_NAME = "device_name"
+    const val PREF_PORT = "port"
 }
 
 object Msg {
