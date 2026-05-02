@@ -114,3 +114,17 @@ Read this before making any changes. These rules apply to both the Homey (Node.j
 ### Capabilities
 - Re-pair the device after adding or removing capabilities — the Homey UI does not update live.
 - Changing capability order also requires re-pairing to take effect.
+
+## Android — Deploying to a Physical Device
+
+- `adb install` over wireless debugging silently fails with no useful error. Always use the two-step approach:
+  ```
+  adb push <apk> /data/local/tmp/soundboard.apk
+  adb shell pm install -r /data/local/tmp/soundboard.apk
+  ```
+- Wireless ADB connections drop when the screen locks. Run `adb connect <ip>:<port>` again if the device disappears from `adb devices`.
+- After install, force-stop and relaunch to ensure the new code runs:
+  ```
+  adb shell am force-stop com.soundboard
+  adb shell am start -n com.soundboard/.ui.MainActivity
+  ```

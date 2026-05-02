@@ -1,5 +1,6 @@
 package com.soundboard.service
 
+import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.util.Log
 import com.soundboard.DoneReason
@@ -10,7 +11,7 @@ private const val TAG = "AudioEngine"
 fun mapVolume(volume: Int): Float =
     (volume / 100.0).pow(1.5).toFloat().coerceAtMost(1.0f)
 
-internal interface Player {
+interface Player {
     fun prepare(filePath: String, volume: Float, loop: Boolean)
     fun start()
     fun stop()
@@ -23,6 +24,12 @@ private class MediaPlayerAdapter : Player {
     private val mp = MediaPlayer()
 
     override fun prepare(filePath: String, volume: Float, loop: Boolean) {
+        mp.setAudioAttributes(
+            AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+        )
         mp.setDataSource(filePath)
         mp.setVolume(volume, volume)
         mp.isLooping = loop

@@ -1,7 +1,7 @@
 {
   "id": "set_volume",
   "title": { "en": "Set global volume" },
-  "titleFormatted": { "en": "Set volume to [[volume]] on [[device]]" },
+  "titleFormatted": { "en": "Set volume to [[volume]]" },
   "args": [
     {
       "name": "device",

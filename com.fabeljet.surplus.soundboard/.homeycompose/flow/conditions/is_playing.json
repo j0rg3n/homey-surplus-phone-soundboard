@@ -1,7 +1,7 @@
 {
   "id": "is_playing",
   "title": { "en": "Soundboard is currently playing" },
-  "titleFormatted": { "en": "[[device]] is currently playing" },
+  "titleFormatted": { "en": "Soundboard is currently playing" },
   "args": [
     {
       "name": "device",

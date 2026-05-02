@@ -1,7 +1,7 @@
 {
   "id": "sound_is_playing",
   "title": { "en": "A sound is currently playing" },
-  "titleFormatted": { "en": "[[sound]] is playing on [[device]]" },
+  "titleFormatted": { "en": "[[sound]] is currently playing" },
   "args": [
     {
       "name": "device",

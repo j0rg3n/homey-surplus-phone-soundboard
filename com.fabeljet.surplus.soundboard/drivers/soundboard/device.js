@@ -50,10 +50,12 @@ class SoundboardDevice extends Device {
     if (this._client) await this._client.disconnect();
   }
 
-  async playSound(soundId, volume) {
+  async playSound(soundId, volume, { loop = false } = {}) {
     const effectiveVolume = volume ?? (this.getStore().globalVolume ?? 100);
     const handle = randomUUID();
-    await this._client.send({ type: MSG.PLAY, soundId, volume: effectiveVolume, handle });
+    const msg = { type: MSG.PLAY, soundId, volume: effectiveVolume, handle };
+    if (loop) msg.loop = true;
+    await this._client.send(msg);
     return handle;
   }
 

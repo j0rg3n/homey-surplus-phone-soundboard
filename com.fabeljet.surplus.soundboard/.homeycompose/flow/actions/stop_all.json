@@ -1,7 +1,7 @@
 {
   "id": "stop_all",
   "title": { "en": "Stop all sounds" },
-  "titleFormatted": { "en": "Stop all sounds on [[device]]" },
+  "titleFormatted": { "en": "Stop all sounds" },
   "args": [
     {
       "name": "device",
