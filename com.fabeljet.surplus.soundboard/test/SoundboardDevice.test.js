@@ -100,19 +100,6 @@ describe('SoundboardDevice', () => {
   });
 
   describe('MSG.STARTED', () => {
-    it('sets speaker_playing to true when a sound starts', async () => {
-      const { device, capabilities, getMockClient } = createDevice();
-      await device.onInit();
-      getMockClient().simulateMessage({
-        type: MSG.STARTED,
-        handle: 'h1',
-        soundId: 'drum',
-        soundName: 'Drum',
-        durationMs: 2000,
-      });
-      expect(capabilities['speaker_playing']).toBe(true);
-    });
-
     it('fires sound_started trigger with correct tokens', async () => {
       const { device, triggers, getMockClient } = createDevice();
       await device.onInit();
@@ -145,17 +132,6 @@ describe('SoundboardDevice', () => {
       return ctx;
     }
 
-    it('sets speaker_playing to false when last sound finishes', async () => {
-      const { device, capabilities, getMockClient } = await setupWithHandle();
-      getMockClient().simulateMessage({
-        type: MSG.DONE,
-        handle: 'h1',
-        soundName: 'Drum',
-        reason: 'completed',
-      });
-      expect(capabilities['speaker_playing']).toBe(false);
-    });
-
     it('fires sound_done trigger with correct tokens', async () => {
       const { device, triggers, getMockClient } = await setupWithHandle();
       getMockClient().simulateMessage({
@@ -182,16 +158,6 @@ describe('SoundboardDevice', () => {
       expect(triggers['sound_done'].reason).toBe('stopped');
     });
 
-    it('speaker_playing remains true when other handles still active', async () => {
-      const ctx = createDevice();
-      await ctx.device.onInit();
-      // Start two sounds
-      ctx.getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'a', soundName: 'A', durationMs: 1000 });
-      ctx.getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h2', soundId: 'b', soundName: 'B', durationMs: 1000 });
-      // Finish one
-      ctx.getMockClient().simulateMessage({ type: MSG.DONE, handle: 'h1', soundName: 'A', reason: 'completed' });
-      expect(ctx.capabilities['speaker_playing']).toBe(true);
-    });
   });
 
   describe('MSG.LIBRARY_UPDATE', () => {
@@ -220,14 +186,6 @@ describe('SoundboardDevice', () => {
       expect(fired.every((t) => t.reason === 'connection_lost')).toBe(true);
       const handles = fired.map((t) => t.handle).sort();
       expect(handles).toEqual(['h1', 'h2'].sort());
-    });
-
-    it('sets speaker_playing to false on disconnect', async () => {
-      const { device, capabilities, getMockClient } = createDevice();
-      await device.onInit();
-      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'a', soundName: 'A', durationMs: 500 });
-      getMockClient().simulateDisconnect();
-      expect(capabilities['speaker_playing']).toBe(false);
     });
 
     it('calls setUnavailable with "Connection lost" on disconnect', async () => {
@@ -352,19 +310,6 @@ describe('SoundboardDevice', () => {
     });
   });
 
-  describe('speaker_playing capability tracking', () => {
-    it('is true when at least one handle is active, false when all finish', async () => {
-      const { device, capabilities, getMockClient } = createDevice();
-      await device.onInit();
-
-      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'a', soundName: 'A', durationMs: 1000 });
-      expect(capabilities['speaker_playing']).toBe(true);
-
-      getMockClient().simulateMessage({ type: MSG.DONE, handle: 'h1', soundName: 'A', reason: 'completed' });
-      expect(capabilities['speaker_playing']).toBe(false);
-    });
-  });
-
   describe('onDeleted', () => {
     it('disconnects the client', async () => {
       const { device, getMockClient } = createDevice();
@@ -395,31 +340,53 @@ describe('SoundboardDevice', () => {
     });
   });
 
-  describe('speaker_playing capability listener', () => {
-    it('calls playSound when listener is triggered with true', async () => {
+  describe('volume_mute capability listener', () => {
+    function getMuteListener(device) {
+      return device.registerCapabilityListener.mock.calls
+        .find(([cap]) => cap === 'volume_mute')?.[1];
+    }
+
+    it('sends MUTE when listener is triggered with true', async () => {
       const { device, getMockClient } = createDevice();
       await device.onInit();
-
-      // Capture the registered listener
-      const listenerCalls = device.registerCapabilityListener.mock.calls;
-      const speakerListener = listenerCalls.find(([cap]) => cap === 'speaker_playing')?.[1];
-      expect(speakerListener).toBeDefined();
-
-      const playSpy = jest.spyOn(device, 'playSound').mockResolvedValue('handle-123');
-      await speakerListener(true);
-      expect(playSpy).toHaveBeenCalledWith('test', 100);
+      const listener = getMuteListener(device);
+      expect(listener).toBeDefined();
+      await listener(true);
+      expect(getMockClient().getLastSentMessage()).toEqual({ type: MSG.MUTE });
     });
 
-    it('sends STOP_ALL when listener is triggered with false', async () => {
+    it('sends UNMUTE when listener is triggered with false', async () => {
       const { device, getMockClient } = createDevice();
       await device.onInit();
+      const listener = getMuteListener(device);
+      await listener(false);
+      expect(getMockClient().getLastSentMessage()).toEqual({ type: MSG.UNMUTE });
+    });
+  });
 
-      const listenerCalls = device.registerCapabilityListener.mock.calls;
-      const speakerListener = listenerCalls.find(([cap]) => cap === 'speaker_playing')?.[1];
+  describe('MSG.MUTE_STATE', () => {
+    it('sets volume_mute capability to muted value', async () => {
+      const { device, capabilities, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.MUTE_STATE, muted: true });
+      expect(capabilities['volume_mute']).toBe(true);
+    });
 
-      await speakerListener(false);
-      const msg = getMockClient().getLastSentMessage();
-      expect(msg).toEqual({ type: MSG.STOP_ALL });
+    it('clears volume_mute capability when muted is false', async () => {
+      const { device, capabilities, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.MUTE_STATE, muted: true });
+      getMockClient().simulateMessage({ type: MSG.MUTE_STATE, muted: false });
+      expect(capabilities['volume_mute']).toBe(false);
+    });
+  });
+
+  describe('onConnect muted field', () => {
+    it('sets volume_mute from hello_ack muted field on connect', async () => {
+      const { device, capabilities, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateConnect({ muted: true, deviceName: 'Test', sounds: [] });
+      expect(capabilities['volume_mute']).toBe(true);
     });
   });
 });

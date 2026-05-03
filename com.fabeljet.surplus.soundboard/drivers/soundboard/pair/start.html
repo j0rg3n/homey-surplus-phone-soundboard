@@ -54,7 +54,7 @@
         });
         Homey.done();
       } catch (err) {
-        status.textContent = 'Could not connect: ' + err.message;
+        status.innerHTML = 'Could not reach the Soundboard app. Make sure it is open on your Android device and the IP address is correct.<br><span style="color:#999;font-size:11px">' + err.message + '</span>';
         btn.disabled = false;
       }
     }

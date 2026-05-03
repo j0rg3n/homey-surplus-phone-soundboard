@@ -12,6 +12,7 @@ class NowPlayingViewModel @Inject constructor(
     private val playbackRepository: PlaybackRepository,
 ) : ViewModel() {
     val active: StateFlow<Map<String, ActivePlayback>> = playbackRepository.active
+    val isMuted: StateFlow<Boolean> = playbackRepository.isMuted
 
     fun stop(handle: String) {
         playbackRepository.requestStop(handle)

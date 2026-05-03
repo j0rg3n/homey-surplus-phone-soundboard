@@ -9,6 +9,7 @@ private class FakePlayer : Player {
     var startCalled = false
     var stopCalled = false
     var releaseCalled = false
+    var lastVolume: Float? = null
     var completionCb: (() -> Unit)? = null
     var errorCb: ((Int, Int) -> Boolean)? = null
 
@@ -16,6 +17,7 @@ private class FakePlayer : Player {
     override fun start() { startCalled = true }
     override fun stop() { stopCalled = true }
     override fun release() { releaseCalled = true }
+    override fun setVolume(volume: Float) { lastVolume = volume }
     override fun setOnCompletionListener(cb: () -> Unit) { completionCb = cb }
     override fun setOnErrorListener(cb: (Int, Int) -> Boolean) { errorCb = cb }
 
@@ -127,6 +129,7 @@ class AudioEngineTest {
                 override fun start() {}
                 override fun stop() {}
                 override fun release() {}
+                override fun setVolume(volume: Float) {}
                 override fun setOnCompletionListener(cb: () -> Unit) {}
                 override fun setOnErrorListener(cb: (Int, Int) -> Boolean) {}
             }
@@ -142,6 +145,51 @@ class AudioEngineTest {
         engine.play("loop.mp3", "L", 100, true, "h1", onStarted = {}, onDone = { reason = it })
         engine.stop("h1")
         assertEquals("stopped", reason)
+    }
+
+    @Test fun `mute sets isMuted to true`() {
+        val engine = makeEngine()
+        assertFalse(engine.isMuted)
+        engine.mute()
+        assertTrue(engine.isMuted)
+    }
+
+    @Test fun `unmute sets isMuted to false`() {
+        val engine = makeEngine()
+        engine.mute()
+        engine.unmute()
+        assertFalse(engine.isMuted)
+    }
+
+    @Test fun `mute calls setVolume(0) on active players`() {
+        val engine = makeEngine()
+        engine.play("p.mp3", "S", 100, false, "h1", onStarted = {}, onDone = {})
+        val player = lastPlayer
+        engine.mute()
+        assertEquals(0f, player.lastVolume)
+    }
+
+    @Test fun `unmute restores original gain on active players`() {
+        val engine = makeEngine()
+        engine.play("p.mp3", "S", 100, false, "h1", onStarted = {}, onDone = {})
+        val player = lastPlayer
+        engine.mute()
+        engine.unmute()
+        val expectedGain = mapVolume(100)
+        assertEquals(expectedGain, player.lastVolume!!, 0.001f)
+    }
+
+    @Test fun `play while muted starts with volume 0`() {
+        val engine = makeEngine()
+        engine.mute()
+        engine.play("p.mp3", "S", 100, false, "h1", onStarted = {}, onDone = {})
+        assertEquals(0f, lastPlayer.lastVolume)
+    }
+
+    @Test fun `play while not muted does not call setVolume`() {
+        val engine = makeEngine()
+        engine.play("p.mp3", "S", 100, false, "h1", onStarted = {}, onDone = {})
+        assertNull(lastPlayer.lastVolume)
     }
 }
 

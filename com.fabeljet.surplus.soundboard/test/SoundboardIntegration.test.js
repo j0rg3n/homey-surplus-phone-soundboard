@@ -183,8 +183,8 @@ describe('SoundboardDevice — integration smoke test', () => {
       });
     });
 
-    it('5. speaker_playing is false after last sound finishes', () => {
-      expect(capabilities['speaker_playing']).toBe(false);
+    it('5. no sounds playing after last sound finishes', () => {
+      expect(device.isAnySoundPlaying()).toBe(false);
     });
   });
 
@@ -267,8 +267,8 @@ describe('SoundboardDevice — integration smoke test', () => {
       expect(handles).toContain(thirdHandle);
     });
 
-    it('10. speaker_playing is false after disconnect', () => {
-      expect(capabilities['speaker_playing']).toBe(false);
+    it('10. no sounds playing after disconnect', () => {
+      expect(device.isAnySoundPlaying()).toBe(false);
     });
   });
 
@@ -317,7 +317,7 @@ describe('SoundboardDevice — integration smoke test', () => {
         handle: handle1,
         duration_ms: 1200,
       });
-      expect(caps['speaker_playing']).toBe(true);
+      expect(dev.isAnySoundPlaying()).toBe(true);
 
       // Step 5 — natural done
       getClient().simulateMessage({
@@ -331,7 +331,7 @@ describe('SoundboardDevice — integration smoke test', () => {
         handle: handle1,
         reason: 'completed',
       });
-      expect(caps['speaker_playing']).toBe(false);
+      expect(dev.isAnySoundPlaying()).toBe(false);
 
       // Step 6 — loop play
       const loopHandle = await dev.playSound('s1', 80, { loop: true });
@@ -347,7 +347,7 @@ describe('SoundboardDevice — integration smoke test', () => {
         soundName: 'Laser',
         durationMs: 0,
       });
-      expect(caps['speaker_playing']).toBe(true);
+      expect(dev.isAnySoundPlaying()).toBe(true);
 
       // Step 7 — stop_sound action
       await dev.stopSound(loopHandle);
@@ -366,7 +366,7 @@ describe('SoundboardDevice — integration smoke test', () => {
         handle: loopHandle,
         reason: 'stopped',
       });
-      expect(caps['speaker_playing']).toBe(false);
+      expect(dev.isAnySoundPlaying()).toBe(false);
 
       // Step 9 — third play then disconnect
       const handle3 = await dev.playSound('s1', 80);
@@ -387,7 +387,7 @@ describe('SoundboardDevice — integration smoke test', () => {
       expect(connectionLostFirings.map((t) => t.handle)).toContain(handle3);
 
       // Step 10 — final state
-      expect(caps['speaker_playing']).toBe(false);
+      expect(dev.isAnySoundPlaying()).toBe(false);
     });
   });
 });

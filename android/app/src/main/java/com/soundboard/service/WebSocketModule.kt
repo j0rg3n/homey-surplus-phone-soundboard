@@ -85,6 +85,7 @@ internal suspend fun DefaultWebSocketServerSession.handleSoundboardSession(
             deviceName = deviceName,
             version = com.soundboard.Constants.PROTOCOL_VERSION,
             sounds = sounds,
+            muted = audioEngine.isMuted,
         )
     )))
 
@@ -163,6 +164,18 @@ internal suspend fun DefaultWebSocketServerSession.handleSoundboardSession(
                 is SoundboardMessage.StopAll -> {
                     Log.d(TAG, "STOP_ALL")
                     audioEngine.stopAll()
+                }
+                is SoundboardMessage.Mute -> {
+                    Log.d(TAG, "MUTE")
+                    audioEngine.mute()
+                    playbackRepository?.setMuted(true)
+                    send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.MuteState(muted = true))))
+                }
+                is SoundboardMessage.Unmute -> {
+                    Log.d(TAG, "UNMUTE")
+                    audioEngine.unmute()
+                    playbackRepository?.setMuted(false)
+                    send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.MuteState(muted = false))))
                 }
                 is SoundboardMessage.Ping -> {
                     send(Frame.Text(MessageProtocol.serialize(SoundboardMessage.Pong)))

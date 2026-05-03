@@ -16,6 +16,7 @@ interface Player {
     fun start()
     fun stop()
     fun release()
+    fun setVolume(volume: Float)
     fun setOnCompletionListener(cb: () -> Unit)
     fun setOnErrorListener(cb: (Int, Int) -> Boolean)
 }
@@ -38,6 +39,7 @@ private class MediaPlayerAdapter : Player {
     override fun start() = mp.start()
     override fun stop() = mp.stop()
     override fun release() = mp.release()
+    override fun setVolume(volume: Float) = mp.setVolume(volume, volume)
     override fun setOnCompletionListener(cb: () -> Unit) { mp.setOnCompletionListener { cb() } }
     override fun setOnErrorListener(cb: (Int, Int) -> Boolean) {
         mp.setOnErrorListener { _, what, extra -> cb(what, extra) }
@@ -49,10 +51,14 @@ class AudioEngine(
 ) {
     private data class ActiveSound(
         val player: Player,
+        val gain: Float,
         val onDone: (String) -> Unit,
     )
 
     private val active = mutableMapOf<String, ActiveSound>()
+
+    @Volatile private var _isMuted = false
+    val isMuted get() = _isMuted
 
     fun play(
         filePath: String,
@@ -84,7 +90,8 @@ class AudioEngine(
             true
         }
 
-        active[handle] = ActiveSound(player, onDone)
+        if (_isMuted) player.setVolume(0f)
+        active[handle] = ActiveSound(player, gain, onDone)
         player.start()
         onStarted()
         return true
@@ -116,6 +123,16 @@ class AudioEngine(
             sound.player.release()
             sound.onDone(DoneReason.CONNECTION_LOST)
         }
+    }
+
+    fun mute() {
+        _isMuted = true
+        active.values.forEach { it.player.setVolume(0f) }
+    }
+
+    fun unmute() {
+        _isMuted = false
+        active.values.forEach { it.player.setVolume(it.gain) }
     }
 
     fun activeHandles(): List<String> = active.keys.toList()

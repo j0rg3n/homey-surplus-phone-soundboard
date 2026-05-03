@@ -31,7 +31,7 @@ sealed class SoundboardMessage {
     data class Hello(val version: String) : SoundboardMessage() {
         override val type = Msg.HELLO
     }
-    data class HelloAck(val deviceName: String, val version: String, val sounds: List<SoundInfo>) : SoundboardMessage() {
+    data class HelloAck(val deviceName: String, val version: String, val sounds: List<SoundInfo>, val muted: Boolean = false) : SoundboardMessage() {
         override val type = Msg.HELLO_ACK
     }
     data class LibraryUpdate(val sounds: List<SoundInfo>) : SoundboardMessage() {
@@ -42,6 +42,15 @@ sealed class SoundboardMessage {
     }
     data class Done(val handle: String, val soundName: String, val reason: String) : SoundboardMessage() {
         override val type = Msg.DONE
+    }
+    object Mute : SoundboardMessage() {
+        override val type = Msg.MUTE
+    }
+    object Unmute : SoundboardMessage() {
+        override val type = Msg.UNMUTE
+    }
+    data class MuteState(val muted: Boolean) : SoundboardMessage() {
+        override val type = Msg.MUTE_STATE
     }
     object Ping : SoundboardMessage() {
         override val type = Msg.PING
@@ -65,6 +74,9 @@ private val REQUIRED_FIELDS = mapOf(
     Msg.LIBRARY_UPDATE to listOf("sounds"),
     Msg.STARTED to listOf("handle", "soundId", "soundName", "durationMs"),
     Msg.DONE to listOf("handle", "soundName", "reason"),
+    Msg.MUTE to emptyList(),
+    Msg.UNMUTE to emptyList(),
+    Msg.MUTE_STATE to listOf("muted"),
     Msg.PING to emptyList(),
     Msg.PONG to emptyList(),
     Msg.ERROR to listOf("code", "message"),
@@ -87,6 +99,7 @@ object MessageProtocol {
                 addProperty("deviceName", msg.deviceName)
                 addProperty("version", msg.version)
                 add("sounds", soundListToJson(msg.sounds))
+                addProperty("muted", msg.muted)
             }
             is SoundboardMessage.LibraryUpdate -> add("sounds", soundListToJson(msg.sounds))
             is SoundboardMessage.Started -> {
@@ -100,6 +113,9 @@ object MessageProtocol {
                 addProperty("soundName", msg.soundName)
                 addProperty("reason", msg.reason)
             }
+            is SoundboardMessage.Mute -> Unit
+            is SoundboardMessage.Unmute -> Unit
+            is SoundboardMessage.MuteState -> addProperty("muted", msg.muted)
             is SoundboardMessage.Ping -> Unit
             is SoundboardMessage.Pong -> Unit
             is SoundboardMessage.Error -> {
@@ -136,6 +152,7 @@ object MessageProtocol {
                 deviceName = obj.get("deviceName").asString,
                 version = obj.get("version").asString,
                 sounds = jsonToSoundList(obj.get("sounds").asJsonArray),
+                muted = obj.get("muted")?.takeIf { !it.isJsonNull }?.asBoolean ?: false,
             )
             Msg.LIBRARY_UPDATE -> SoundboardMessage.LibraryUpdate(
                 sounds = jsonToSoundList(obj.get("sounds").asJsonArray),
@@ -150,6 +167,11 @@ object MessageProtocol {
                 handle = obj.get("handle").asString,
                 soundName = obj.get("soundName").asString,
                 reason = obj.get("reason").asString,
+            )
+            Msg.MUTE -> SoundboardMessage.Mute
+            Msg.UNMUTE -> SoundboardMessage.Unmute
+            Msg.MUTE_STATE -> SoundboardMessage.MuteState(
+                muted = obj.get("muted").asBoolean,
             )
             Msg.PING -> SoundboardMessage.Ping
             Msg.PONG -> SoundboardMessage.Pong

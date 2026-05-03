@@ -65,3 +65,24 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 - [ ] **7.1** Full integration smoke test (Homey side): `MockWebSocketClient` simulates complete session — connect, library sync, play, started callback, natural done, loop play, stop command, done-on-disconnect for remaining handles. Assert final device state and all Flow triggers fired in correct order.
 - [ ] **7.2** Full integration smoke test (Android side): Ktor test engine simulates Homey client — connect, play 3 sounds simultaneously, stop one, wait for others to complete, verify all `done` messages received with correct reasons and handles.
 - [ ] **7.3** Verify Homey coverage ≥ 65% and Android coverage ≥ 65%. Fill gaps with targeted tests. Run `homey app validate`. Write README covering: pairing instructions, how to import sounds, how to use Flow cards, how to run tests.
+
+---
+
+## Group 8 — Publish Preparation
+*Depends on Group 7. Items 8.1–8.3 are parallelisable.*
+
+- [ ] **8.1** Write `CHANGELOG.md` with a v1.0.0 entry. Prepare Homey app store listing: short description, long description, screenshots, privacy policy URL, support URL. Run `homey app publish --dry-run` and resolve any validation errors (per SPEC §17.1).
+- [ ] **8.2** Prepare Google Play store listing: title, descriptions, icon, feature graphic, screenshots, content rating questionnaire, privacy policy. Build a signed release AAB with `./gradlew bundleRelease`; upload to the Internal Testing track (per SPEC §17.2).
+- [ ] **8.3** Write user-facing `README.md` covering: what the app does, requirements (Homey hub, Android device on same LAN), pairing steps, how to import sounds, how to use Flow cards. Link to support channel. Add disclaimers per SPEC §17.3.
+
+---
+
+## Group 9 — Post-Launch Improvements
+*Backlog items from user feedback and Todoist. Prioritise before starting any item.*
+
+- [ ] **9.1** Auto-reconnect: device should reconnect automatically when the connection drops without requiring an app restart (Todoist #6gWVG7vPg83pgqvr).
+- [ ] **9.2** AppStore link and step-by-step setup instructions in the Homey pairing view (Todoist #6gWVHcV24HwXH2Fr).
+- [ ] **9.3** Loop with boundary control: expose loop-start and loop-end points as configurable per-sample fields in the Library editor; send as part of the `play` message (Todoist #6gWVFVc4m653GGvJ, per SPEC §3.2).
+- [ ] **9.4** Configurable threshold names ("Grenser: …" labels in the volume/settings UI) — make them editable strings stored in SharedPreferences (Todoist #6gWVFq3W42CPxQvr).
+- [ ] **9.5** Scene helper UI: a screen or bottom sheet on Android that lets the user fire a named preset (a fixed list of sounds + volumes) with one tap; store presets in Room (Todoist #6gWVMG37PWcqWhcJ).
+- [ ] **9.6** iOS app: evaluate feasibility, list required hardware for development (Mac + iPhone), and write a brief plan; do not implement until hardware is confirmed available (Todoist #6gWVHjGq3VFF8HRJ).

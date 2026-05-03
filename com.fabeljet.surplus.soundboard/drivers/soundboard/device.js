@@ -4,7 +4,7 @@ const { Device } = require('homey');
 const { randomUUID } = require('crypto');
 const WebSocketClient = require('../../lib/WebSocketClient');
 const PlaybackHandleStore = require('../../lib/PlaybackHandleStore');
-const { MSG, PROTOCOL_VERSION } = require('../../lib/constants');
+const { MSG } = require('../../lib/constants');
 
 class SoundboardDevice extends Device {
 
@@ -20,6 +20,9 @@ class SoundboardDevice extends Device {
       onConnect: (helloAck) => {
         this.log('Connected:', helloAck.deviceName);
         if (helloAck.sounds) this.setStoreValue('sounds', helloAck.sounds).catch(this.error);
+        if (typeof helloAck.muted === 'boolean') {
+          this.setCapabilityValue('volume_mute', helloAck.muted).catch(this.error);
+        }
         this.setAvailable().catch(this.error);
       },
       onDisconnect: () => {
@@ -28,12 +31,8 @@ class SoundboardDevice extends Device {
       },
     });
 
-    this.registerCapabilityListener('speaker_playing', async (value) => {
-      if (value) {
-        await this.playSound('test', 100);
-      } else {
-        await this._client.send({ type: MSG.STOP_ALL });
-      }
+    this.registerCapabilityListener('volume_mute', async (value) => {
+      await this._client.send({ type: value ? MSG.MUTE : MSG.UNMUTE });
     });
 
     await this._client.connect().catch((err) => {
@@ -56,6 +55,7 @@ class SoundboardDevice extends Device {
     const msg = { type: MSG.PLAY, soundId, volume: effectiveVolume, handle };
     if (loop) msg.loop = true;
     await this._client.send(msg);
+    this._lastPlayed = { soundId, volume: effectiveVolume };
     return handle;
   }
 
@@ -88,7 +88,6 @@ class SoundboardDevice extends Device {
           startedAt: Date.now(),
           durationMs: msg.durationMs,
         });
-        this._updateSpeakerPlaying();
         this.homey.flow.getDeviceTriggerCard('sound_started')
           .trigger(this, { sound_name: msg.soundName, handle: msg.handle, duration_ms: msg.durationMs })
           .catch(this.error);
@@ -96,7 +95,6 @@ class SoundboardDevice extends Device {
 
       case MSG.DONE:
         this._handles.remove(msg.handle);
-        this._updateSpeakerPlaying();
         this.homey.flow.getDeviceTriggerCard('sound_done')
           .trigger(this, { sound_name: msg.soundName, handle: msg.handle, reason: msg.reason })
           .catch(this.error);
@@ -108,18 +106,19 @@ class SoundboardDevice extends Device {
 
       case MSG.HELLO_ACK:
         if (msg.sounds) this.setStoreValue('sounds', msg.sounds).catch(this.error);
+        if (typeof msg.muted === 'boolean') {
+          this.setCapabilityValue('volume_mute', msg.muted).catch(this.error);
+        }
+        break;
+
+      case MSG.MUTE_STATE:
+        this.setCapabilityValue('volume_mute', msg.muted).catch(this.error);
         break;
     }
   }
 
-  _updateSpeakerPlaying() {
-    const playing = this._handles.getAll().length > 0;
-    this.setCapabilityValue('speaker_playing', playing).catch(this.error);
-  }
-
   _onDisconnect() {
     const removed = this._handles.clear();
-    this.setCapabilityValue('speaker_playing', false).catch(this.error);
     this.setUnavailable('Connection lost').catch(this.error);
     for (const entry of removed) {
       this.homey.flow.getDeviceTriggerCard('sound_done')

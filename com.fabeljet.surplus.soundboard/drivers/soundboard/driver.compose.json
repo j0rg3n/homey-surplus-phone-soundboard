@@ -4,7 +4,7 @@
   },
   "class": "speaker",
   "capabilities": [
-    "speaker_playing"
+    "volume_mute"
   ],
   "platforms": [
     "local"

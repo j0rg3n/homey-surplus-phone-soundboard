@@ -28,6 +28,7 @@ class WebSocketModuleTest {
         override fun start() {}
         override fun stop() {}
         override fun release() {}
+        override fun setVolume(volume: Float) {}
         override fun setOnCompletionListener(cb: () -> Unit) {}
         override fun setOnErrorListener(cb: (Int, Int) -> Boolean) {}
     }}
@@ -272,6 +273,7 @@ private class StoppablePlayer : Player {
     override fun start() {}
     override fun stop() {}
     override fun release() {}
+    override fun setVolume(volume: Float) {}
     override fun setOnCompletionListener(cb: () -> Unit) {}
     override fun setOnErrorListener(cb: (Int, Int) -> Boolean) {}
 }

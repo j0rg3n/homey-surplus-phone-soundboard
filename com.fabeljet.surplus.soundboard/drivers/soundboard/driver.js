@@ -11,8 +11,24 @@ class SoundboardDriver extends Driver {
     const playCard = this.homey.flow.getActionCard('play_sound');
 
     playCard.registerRunListener(async (args) => {
+      await args.device.playSound(args.sound.id, args.volume ?? 100);
+    });
+
+    // --- play_sound_advanced action (Advanced Flows only — produces handle token) ---
+    const playAdvancedCard = this.homey.flow.getActionCard('play_sound_advanced');
+
+    playAdvancedCard.registerRunListener(async (args) => {
       const handle = await args.device.playSound(args.sound.id, args.volume ?? 100);
       return { handle };
+    });
+
+    playAdvancedCard.getArgument('sound').registerAutocompleteListener(async (query, args) => {
+      const sounds = args.device.getStore().sounds ?? [];
+      const available = args.device.getAvailable();
+      const suffix = available ? '' : ' (offline)';
+      return sounds
+        .filter(s => !query || s.name.toLowerCase().includes(query.toLowerCase()))
+        .map(s => ({ id: s.id, name: s.name + suffix }));
     });
 
     playCard.getArgument('sound').registerAutocompleteListener(async (query, args) => {

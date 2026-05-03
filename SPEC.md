@@ -72,7 +72,7 @@ test/
 
 ### 3.1 Transport
 
-- **Protocol:** WebSocket (`ws://`)
+- **Protocol:** WebSocket over TLS (`wss://`) — see §16 for security details
 - **Default port:** 8765 (user-overridable in Android advanced settings)
 - **Android:** Ktor WebSocket server running in a foreground `PlaybackService`
 - **Homey:** WebSocket client in `WebSocketClient.js`
@@ -179,6 +179,7 @@ All messages are JSON, newline-delimited. Every message has a `type` field.
 | `HANDLE_NOT_FOUND` | `handle` in stop command not found |
 | `PLAYBACK_FAILED` | Audio engine error during play |
 | `UNKNOWN_MESSAGE` | Unrecognised message type |
+| `AUTH_FAILED` | Token missing, invalid, or pairing rejected by user |
 
 ### 3.4 Connection Lifecycle
 
@@ -351,10 +352,15 @@ Audio files copied to `filesDir/sounds/<uuid>.<original-ext>` on import. Deleted
 ### 8.1 Pairing Flow
 
 1. Custom pairing view: user enters Android device IP and optionally port.
-2. Homey attempts WebSocket connection.
-3. Sends `hello`, waits for `hello_ack` (timeout: 5 seconds).
-4. On success: device added, name from `hello_ack.deviceName`, editable afterwards.
-5. On failure: error message shown in pairing view with retry.
+2. Homey generates a 6-digit numeric pairing code and displays it prominently in the pairing view.
+3. Homey attempts a `wss://` connection; sends `hello` with a `pairingCode` field.
+4. Android shows a system notification: "Homey wants to pair — code **XXXXXX**". User verifies the code matches and taps **Accept**.
+5. Android sends `hello_ack` including a freshly generated `pairingToken` (UUID v4) and its TLS certificate fingerprint (SHA-256, hex-encoded). Android stores the token.
+6. Homey stores `pairingToken` and `certFingerprint` in device store. Device is created.
+7. On failure or user rejection: error message shown in pairing view with retry.
+
+**Ongoing authentication:**  
+Every subsequent `hello` (including reconnects) includes the stored `pairingToken`. Android verifies it matches. Mismatch → connection rejected with `error` code `AUTH_FAILED`; no further messages processed.
 
 ### 8.2 Device Settings
 
@@ -527,6 +533,205 @@ const ERROR_CODE = {
   UNKNOWN_MESSAGE:  'UNKNOWN_MESSAGE',
 };
 ```
+
+---
+
+## 16. Security
+
+### 16.1 Threat Model
+
+The app operates on a trusted local network. Threats addressed:
+
+- **Rogue device on the same LAN** connecting to the Android WebSocket server and playing sounds.
+- **Man-in-the-middle** on the LAN intercepting or replaying commands.
+- **Accidental pairing** with the wrong Android device (user error).
+
+Threats explicitly out of scope: internet exposure, physical device access.
+
+### 16.2 Transport Security (TLS)
+
+- Android generates a **self-signed RSA-2048 certificate** on first launch and stores it in the Android Keystore. The private key never leaves the device.
+- The Ktor WebSocket server serves `wss://` using this certificate.
+- During pairing, Homey receives the certificate and stores its **SHA-256 fingerprint** in device store (`certFingerprint`).
+- All subsequent `wss://` connections use **certificate pinning**: Homey's `WebSocketClient` verifies the presented certificate matches the stored fingerprint. Mismatch → disconnect, log warning, do not reconnect automatically.
+
+### 16.3 Pairing Authentication
+
+The pairing code prevents accidental pairing with the wrong Android device and confirms physical presence.
+
+1. Homey generates a cryptographically random **6-digit numeric code** (`crypto.randomInt(0, 999999)`, zero-padded) and displays it in the pairing view.
+2. Homey sends a `hello` message that includes `"pairingCode": "XXXXXX"`.
+3. Android receives the code and shows a **heads-up notification** (dismissible) with the code. The user must tap **Accept** or **Reject** within 60 seconds; no response = implicit reject.
+4. On accept: Android generates a `pairingToken` (UUID v4), persists it in `SharedPreferences`, and sends `hello_ack` with `"pairingToken": "..."`.
+5. Homey stores `pairingToken` in device store.
+
+The 6-digit code is single-use: Android discards it after one pairing attempt (success or failure).
+
+### 16.4 Ongoing Authentication
+
+After pairing, all `hello` messages (initial connect and every reconnect) include `"pairingToken": "<stored-token>"`. `hello` messages without a token are treated as pairing attempts (step 2 above, subject to user accept/reject).
+
+Android verifies the token on every `hello`:
+- Match → respond with `hello_ack` (no token echoed back), proceed normally.
+- Mismatch or missing token → send `error` with code `AUTH_FAILED`, close connection. Do not reveal whether the token was wrong vs. absent.
+
+### 16.5 Protocol Message Changes
+
+Two fields added to the `hello` message:
+
+```jsonc
+{
+  "type": "hello",
+  "version": "1.0",
+  "pairingCode": "042817",   // present only during initial pairing; omit on reconnect
+  "pairingToken": "uuid"     // present on all reconnects after pairing; omit during initial pair
+}
+```
+
+One new field in `hello_ack` (pairing response only):
+
+```jsonc
+{
+  "type": "hello_ack",
+  "deviceName": "Galaxy A8",
+  "version": "1.0",
+  "sounds": [...],
+  "pairingToken": "uuid"     // only present in response to a pairingCode hello
+}
+```
+
+One new error code:
+
+| Code | Meaning |
+|---|---|
+| `AUTH_FAILED` | Token missing, invalid, or pairing rejected by user |
+
+### 16.6 Android Keystore and Certificate Lifecycle
+
+- Certificate CN: `surplus-soundboard-<uuid>` (unique per install).
+- Certificate validity: 10 years.
+- If the app is uninstalled and reinstalled, a new certificate is generated and all paired Homey devices must re-pair.
+- Certificate rotation on request: Settings → Advanced → "Reset pairing credentials". Warns that all paired devices must re-pair.
+
+### 16.7 Implementation Notes
+
+- Use `KeyPairGenerator` with `KeyProperties.KEY_ALGORITHM_RSA` and `AndroidKeyStore` provider.
+- Ktor TLS configuration: `sslConnector` with the keystore alias; no client certificate required.
+- Homey side: Node's `https` / `tls` module; pass `rejectUnauthorized: false` but implement manual fingerprint check against stored `certFingerprint` in the `secureConnect` event.
+- Pairing notification on Android: use `NotificationChannel` priority `HIGH` so it appears as a heads-up even when the app is backgrounded.
+
+---
+
+## 17. Publish Preparation
+
+### 17.1 Homey App Store
+
+**Developer registration**
+1. Create a Homey developer account at [homey.app/developers](https://homey.app/developers).
+2. Accept the Homey App Store Developer Agreement.
+3. Choose an app ID that is unique and follows reverse-domain convention (`com.<publisher>.<appname>`).
+
+**App metadata (required before submission)**
+- App name, short description (max 80 chars), long description (markdown).
+- App icon: 512×512 PNG with transparent background.
+- At least 3 screenshots from the Homey web or mobile UI showing Flow cards in use.
+- Privacy policy URL (required even if the app collects no personal data — state that explicitly).
+- Support URL or email address.
+- Changelog entry for each submitted version.
+
+**SDK compliance checklist**
+- `homey app validate` must pass with zero warnings.
+- All capabilities used must be declared in `driver.compose.json`.
+- App must handle `onDeleted()` — disconnect and clean up.
+- App must not request permissions beyond what is used.
+- `sdk` version in `app.json` must be `3` or higher.
+
+**Submission process**
+1. Run `homey app publish` from the app directory.
+2. Submit via the Homey developer portal for review.
+3. Review typically takes 5–10 business days; expect at least one round of feedback.
+4. After approval, the app is listed publicly and receives automatic update notifications to users.
+
+**Licensing**
+- The repository `LICENSE` file must match the license declared in `app.json`.
+- Third-party dependencies must have OSI-approved licenses; check with `npm ls --all` for licence-incompatible packages.
+
+### 17.2 Google Play Store
+
+**Developer registration**
+1. Create a Google Play Developer account at [play.google.com/console](https://play.google.com/console).
+2. Pay the one-time registration fee (currently $25 USD).
+3. Complete identity verification (may take 2–7 days).
+
+**App metadata (required before submission)**
+- App title (max 30 chars), short description (max 80 chars), full description (max 4000 chars).
+- App icon: 512×512 PNG.
+- Feature graphic: 1024×500 PNG (used in store listing header).
+- At least 2 screenshots per supported screen size (phone required; tablet optional).
+- Privacy policy URL — required for all apps. Must accurately describe data handling (audio files stored locally, IP address stored locally, no data leaves device).
+- Content rating questionnaire — complete honestly; this app rates Everyone (no objectionable content).
+- Target audience declaration.
+
+**Build and signing**
+- Create a release keystore with `keytool`; store securely — loss requires Google Play App Signing enrollment or re-listing the app.
+- Build a release AAB: `./gradlew bundleRelease`.
+- Enroll in Google Play App Signing to let Google manage the distribution certificate.
+
+**Compliance checklist**
+- `targetSdkVersion` must meet current Play Store requirements (check annually — Google raises the minimum each year).
+- Foreground service must declare `foregroundServiceType` in `AndroidManifest.xml` (already `mediaPlayback`).
+- `FOREGROUND_SERVICE_MEDIA_PLAYBACK` permission must be declared.
+- `POST_NOTIFICATIONS` must be declared and requested at runtime (Android 13+).
+- No use of restricted APIs (READ_CONTACTS, CAMERA, etc.) unless justified.
+
+**Submission process**
+1. Create a new app in Play Console.
+2. Fill out all store listing fields, content rating, and pricing (free).
+3. Upload the signed AAB to the Internal Testing track first.
+4. Promote to Closed Testing (trusted testers) before Production.
+5. Production review typically takes 1–3 days for new apps.
+
+**Licencing and legal**
+- Terms of service are optional but recommended: state that the app requires a Homey hub and a local network.
+- Acknowledge Google Play Developer Distribution Agreement.
+
+### 17.3 Disclaimers and Legal
+
+- Include a disclaimer in both app store descriptions: _"Surplus Soundboard requires a Homey home automation hub. The Android app acts as the audio playback server; the Homey app provides automation capabilities."_
+- Privacy policy must state: audio files are stored locally on the Android device; IP addresses are stored locally on the Homey hub; no data is transmitted to external servers.
+- The app does not process payment, collect health data, or target children — state this in the content rating questionnaire.
+- Dual-licensing: if the source code is public, ensure the README states clearly which components are open source and which (if any) are proprietary.
+
+---
+
+## 18. End-User Support and Communication
+
+### 18.1 Support Channels
+
+- Provide at minimum one support channel listed in both store pages: a GitHub Issues page or an email address.
+- Homey Community Forum thread: create a thread in the "Apps" category when the app goes public. Link it from the store description.
+- Respond to store reviews — both stores surface review replies publicly and they influence conversion.
+
+### 18.2 Bug Report Intake
+
+When a user reports a bug:
+1. Ask for Android OS version, Homey firmware version, and app version (both).
+2. Ask for a description of what they expected vs. what happened.
+3. Ask them to export the Homey app log (More → Logs → Export) and the Android logcat if possible (`adb logcat -d > log.txt`).
+4. Reproduce on a test device before closing. If unable to reproduce, ask the user to confirm if it persists after a reinstall.
+
+### 18.3 Changelog Discipline
+
+- Every published update must include a human-readable changelog entry.
+- Format: one-line summary per change, starting with a verb. Example: _"Fixed: sounds sometimes not playing after reconnect."_
+- Breaking changes (re-pair required, data migration needed) must be clearly flagged in the changelog.
+- Keep a `CHANGELOG.md` in the repository and copy relevant entries to store submission forms.
+
+### 18.4 Update Cadence
+
+- Critical bug fixes: release as soon as verified.
+- Minor improvements and new features: batch into monthly releases where possible to reduce review overhead.
+- Security fixes: release immediately; notify users via the Homey Community Forum thread.
 
 ---
 

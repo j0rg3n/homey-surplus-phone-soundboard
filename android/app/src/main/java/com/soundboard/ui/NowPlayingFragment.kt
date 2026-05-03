@@ -48,6 +48,13 @@ class NowPlayingFragment : Fragment(R.layout.fragment_now_playing) {
                 binding.recyclerNowPlaying.visibility = if (list.isEmpty()) GONE else VISIBLE
             }
         }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.isMuted.collectLatest { muted ->
+                binding.tvMutedBanner.visibility = if (muted) VISIBLE else GONE
+            }
+        }
+        // TODO: tap banner to unmute (requires request channel from repository to PlaybackService)
     }
 
     override fun onDestroyView() {

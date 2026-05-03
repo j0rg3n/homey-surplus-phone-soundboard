@@ -26,6 +26,9 @@ object Msg {
     const val PING = "ping"
     const val PONG = "pong"
     const val ERROR = "error"
+    const val MUTE = "mute"
+    const val UNMUTE = "unmute"
+    const val MUTE_STATE = "mute_state"
 }
 
 object DoneReason {

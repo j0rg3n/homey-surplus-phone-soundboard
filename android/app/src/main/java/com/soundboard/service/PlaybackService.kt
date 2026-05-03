@@ -49,6 +49,7 @@ class PlaybackService : Service() {
         startWebSocketServer()
         observeLibrary()
         observeStopRequests()
+        observeMuted()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int = START_STICKY
@@ -130,6 +131,32 @@ class PlaybackService : Service() {
                 audioEngine.stop(handle)
             }
         }
+    }
+
+    private fun observeMuted() {
+        serviceScope.launch {
+            playbackRepository.isMuted.collect { muted ->
+                updateNotification(muted)
+            }
+        }
+    }
+
+    private fun updateNotification(muted: Boolean) {
+        val count = playbackRepository.getAll().size
+        val contentText = when {
+            muted && count > 0 -> "Muted · $count sound${if (count == 1) "" else "s"} playing"
+            muted -> "Muted · Waiting for sounds"
+            count > 0 -> "$count sound${if (count == 1) "" else "s"} playing"
+            else -> "Waiting for sounds"
+        }
+        val mgr = getSystemService(NotificationManager::class.java)
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Soundboard active")
+            .setContentText(contentText)
+            .setSmallIcon(android.R.drawable.ic_media_play)
+            .setOngoing(true)
+            .build()
+        mgr.notify(NOTIFICATION_ID, notification)
     }
 
     companion object {

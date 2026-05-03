@@ -20,6 +20,9 @@ open class PlaybackRepository {
     private val _active = MutableStateFlow<Map<String, ActivePlayback>>(emptyMap())
     val active: StateFlow<Map<String, ActivePlayback>> = _active.asStateFlow()
 
+    private val _isMuted = MutableStateFlow(false)
+    val isMuted: StateFlow<Boolean> = _isMuted.asStateFlow()
+
     private val _stopRequests = MutableSharedFlow<String>(extraBufferCapacity = 16)
     val stopRequests: SharedFlow<String> = _stopRequests.asSharedFlow()
 
@@ -36,6 +39,10 @@ open class PlaybackRepository {
     }
 
     fun getAll(): List<ActivePlayback> = _active.value.values.toList()
+
+    open fun setMuted(muted: Boolean) {
+        _isMuted.value = muted
+    }
 
     open fun requestStop(handle: String) {
         _stopRequests.tryEmit(handle)
