@@ -6,11 +6,14 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.appcompat.app.AlertDialog
+import androidx.appcompat.widget.PopupMenu
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
@@ -49,12 +52,32 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
         super.onViewCreated(view, savedInstanceState)
         _binding = FragmentLibraryBinding.bind(view)
 
-        adapter = LibraryAdapter { sample ->
-            SampleEditBottomSheet.newInstance(sample.id)
-                .show(childFragmentManager, SampleEditBottomSheet.TAG)
-        }
+        adapter = LibraryAdapter(
+            onPreview = { sample -> viewModel.previewSound(sample) },
+            onOverflow = { sample, anchor -> showOverflowMenu(sample, anchor) },
+        )
         binding.recyclerLibrary.layoutManager = LinearLayoutManager(requireContext())
         binding.recyclerLibrary.adapter = adapter
+
+        val swipeCallback = object : ItemTouchHelper.SimpleCallback(
+            0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
+        ) {
+            override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, t: RecyclerView.ViewHolder) = false
+
+            override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
+                val pos = viewHolder.adapterPosition
+                if (pos == RecyclerView.NO_ID) return
+                val sample = adapter.currentList[pos]
+                adapter.notifyItemChanged(pos)
+                if (direction == ItemTouchHelper.LEFT) {
+                    SampleEditBottomSheet.newInstance(sample.id)
+                        .show(childFragmentManager, SampleEditBottomSheet.TAG)
+                } else {
+                    showDeleteConfirmation(sample)
+                }
+            }
+        }
+        ItemTouchHelper(swipeCallback).attachToRecyclerView(binding.recyclerLibrary)
 
         binding.searchView.setOnQueryTextListener(object : androidx.appcompat.widget.SearchView.OnQueryTextListener {
             override fun onQueryTextSubmit(query: String?) = true
@@ -77,17 +100,74 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
                 adapter.submitList(samples)
             }
         }
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewModel.previewingSampleId.collectLatest { id ->
+                adapter.setPreviewingId(id)
+            }
+        }
+    }
+
+    private fun showDeleteConfirmation(sample: SampleEntity) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Delete \"${sample.name}\"?")
+            .setMessage("This will permanently remove the sound from your library.")
+            .setPositiveButton("Delete") { _, _ ->
+                viewLifecycleOwner.lifecycleScope.launch {
+                    viewModel.deleteSample(sample)
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showOverflowMenu(sample: SampleEntity, anchor: View) {
+        PopupMenu(requireContext(), anchor).apply {
+            menu.add(0, MENU_EDIT, 0, "Edit")
+            menu.add(0, MENU_DELETE, 1, "Delete")
+            setOnMenuItemClickListener { item ->
+                when (item.itemId) {
+                    MENU_EDIT -> {
+                        SampleEditBottomSheet.newInstance(sample.id)
+                            .show(childFragmentManager, SampleEditBottomSheet.TAG)
+                        true
+                    }
+                    MENU_DELETE -> {
+                        showDeleteConfirmation(sample)
+                        true
+                    }
+                    else -> false
+                }
+            }
+            show()
+        }
     }
 
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
     }
+
+    companion object {
+        private const val MENU_EDIT = 1
+        private const val MENU_DELETE = 2
+    }
 }
 
 private class LibraryAdapter(
-    private val onItemClick: (SampleEntity) -> Unit,
+    private val onPreview: (SampleEntity) -> Unit,
+    private val onOverflow: (SampleEntity, View) -> Unit,
 ) : ListAdapter<SampleEntity, LibraryAdapter.ViewHolder>(DIFF) {
+
+    private var previewingId: String? = null
+
+    fun setPreviewingId(id: String?) {
+        val old = previewingId
+        previewingId = id
+        currentList.forEachIndexed { idx, s ->
+            if (s.id == old || s.id == id) notifyItemChanged(idx)
+        }
+    }
 
     companion object {
         private val DIFF = object : DiffUtil.ItemCallback<SampleEntity>() {
@@ -106,7 +186,9 @@ private class LibraryAdapter(
             val loopVisibility = if (sample.loop) View.VISIBLE else View.GONE
             binding.iconLoop.visibility = loopVisibility
             binding.textLoopIndicator.visibility = loopVisibility
-            binding.root.setOnClickListener { onItemClick(sample) }
+            binding.iconPreview.visibility = if (sample.id == previewingId) View.VISIBLE else View.GONE
+            binding.root.setOnClickListener { onPreview(sample) }
+            binding.btnOverflow.setOnClickListener { onOverflow(sample, it) }
         }
     }
 

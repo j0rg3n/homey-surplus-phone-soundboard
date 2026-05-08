@@ -1,10 +1,16 @@
 package com.soundboard.ui
 
 import androidx.fragment.app.testing.launchFragment
+import androidx.recyclerview.widget.RecyclerView
 import androidx.test.espresso.Espresso.onView
 import androidx.test.espresso.action.ViewActions.click
+import androidx.test.espresso.action.ViewActions.swipeLeft
+import androidx.test.espresso.action.ViewActions.swipeRight
 import androidx.test.espresso.action.ViewActions.typeText
+import androidx.test.espresso.assertion.ViewAssertions.doesNotExist
 import androidx.test.espresso.assertion.ViewAssertions.matches
+import androidx.test.espresso.contrib.RecyclerViewActions
+import androidx.test.espresso.matcher.ViewMatchers.hasDescendant
 import androidx.test.espresso.matcher.ViewMatchers.isDisplayed
 import androidx.test.espresso.matcher.ViewMatchers.withId
 import androidx.test.espresso.matcher.ViewMatchers.withText
@@ -44,62 +50,74 @@ class LibraryFragmentTest {
     @Test
     fun searchFilterShowsMatchingItemsOnly() {
         hiltRule.inject()
-
         val tmpFile = File.createTempFile("clip", ".mp3").also { it.writeBytes(byteArrayOf(1)) }
         runBlocking {
             sampleRepository.import("Alpha Sound", tmpFile, 1000L)
             sampleRepository.import("Beta Sound", tmpFile, 1000L)
         }
         tmpFile.delete()
-
         launchFragment<LibraryFragment>()
-
         onView(withId(R.id.search_view)).perform(click())
         onView(withId(androidx.appcompat.R.id.search_src_text)).perform(typeText("Alpha"))
-
         Thread.sleep(400)
-
         onView(withText("Alpha Sound")).check(matches(isDisplayed()))
     }
 
     @Test
-    fun clickingItemOpensEditSheet() {
+    fun tappingItemDoesNotOpenEditSheet() {
         hiltRule.inject()
-
         val tmpFile = File.createTempFile("clip", ".mp3").also { it.writeBytes(byteArrayOf(1)) }
-        runBlocking {
-            sampleRepository.import("Edit Me", tmpFile, 1000L)
-        }
+        runBlocking { sampleRepository.import("Tap Test", tmpFile, 1000L) }
         tmpFile.delete()
-
         launchFragment<LibraryFragment>()
         Thread.sleep(300)
-
-        onView(withText("Edit Me")).perform(click())
+        onView(withText("Tap Test")).perform(click())
         Thread.sleep(300)
+        onView(withId(R.id.btn_delete)).check(doesNotExist())
+    }
 
+    @Test
+    fun swipeLeftOpensEditSheet() {
+        hiltRule.inject()
+        val tmpFile = File.createTempFile("clip", ".mp3").also { it.writeBytes(byteArrayOf(1)) }
+        runBlocking { sampleRepository.import("Edit Me", tmpFile, 1000L) }
+        tmpFile.delete()
+        launchFragment<LibraryFragment>()
+        Thread.sleep(300)
+        onView(withId(R.id.recycler_library))
+            .perform(RecyclerViewActions.actionOnItem<RecyclerView.ViewHolder>(
+                hasDescendant(withText("Edit Me")), swipeLeft()
+            ))
+        Thread.sleep(300)
         onView(withId(R.id.btn_delete)).check(matches(isDisplayed()))
     }
 
     @Test
-    fun deleteButtonShowsConfirmationDialog() {
+    fun swipeRightShowsDeleteConfirmation() {
         hiltRule.inject()
-
         val tmpFile = File.createTempFile("clip", ".mp3").also { it.writeBytes(byteArrayOf(1)) }
-        runBlocking {
-            sampleRepository.import("Delete Me", tmpFile, 1000L)
-        }
+        runBlocking { sampleRepository.import("Delete Me", tmpFile, 1000L) }
         tmpFile.delete()
-
         launchFragment<LibraryFragment>()
         Thread.sleep(300)
-
-        onView(withText("Delete Me")).perform(click())
+        onView(withId(R.id.recycler_library))
+            .perform(RecyclerViewActions.actionOnItem<RecyclerView.ViewHolder>(
+                hasDescendant(withText("Delete Me")), swipeRight()
+            ))
         Thread.sleep(300)
-
-        onView(withId(R.id.btn_delete)).perform(click())
-        Thread.sleep(200)
-
         onView(withText("Delete")).check(matches(isDisplayed()))
+    }
+
+    @Test
+    fun overflowMenuShowsEditOption() {
+        hiltRule.inject()
+        val tmpFile = File.createTempFile("clip", ".mp3").also { it.writeBytes(byteArrayOf(1)) }
+        runBlocking { sampleRepository.import("Menu Sound", tmpFile, 1000L) }
+        tmpFile.delete()
+        launchFragment<LibraryFragment>()
+        Thread.sleep(300)
+        onView(withId(R.id.btn_overflow)).perform(click())
+        Thread.sleep(200)
+        onView(withText("Edit")).check(matches(isDisplayed()))
     }
 }
