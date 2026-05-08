@@ -260,8 +260,12 @@ Settings accessible via toolbar gear icon from either screen.
 - Searchable, alphabetically ordered list of all imported sounds.
 - Search bar: case-insensitive substring match on name.
 - Each row: sound name, duration (formatted as `m:ss`), loop indicator icon if looping.
-- Tap row → opens **Sample Edit Sheet**.
+- **Tap row** → previews the sound (plays locally at the configured volume). Tap again to stop preview.
+- **Swipe left** → opens Sample Edit Sheet.
+- **Swipe right** → delete with confirmation dialog.
+- **⋯ overflow menu** on each row → Edit, Delete.
 - FAB (+) → system file picker filtered to audio MIME types; supports multi-select.
+- **Loop guard**: if a sound has `loop: true` and any instance of that sound is currently playing when preview is triggered from the library list, stop all playing instances instead of starting a new one.
 
 ### 5.4 Sample Edit Sheet (Bottom Sheet)
 
@@ -732,6 +736,64 @@ When a user reports a bug:
 - Critical bug fixes: release as soon as verified.
 - Minor improvements and new features: batch into monthly releases where possible to reduce review overhead.
 - Security fixes: release immediately; notify users via the Homey Community Forum thread.
+
+---
+
+## 19. Future: Additional Surplus Device Types
+
+This section specifies planned Homey device types backed by other Android hardware. None of these are implemented yet — this is a scoping reference for future development.
+
+### 19.1 Flashlight Device
+
+- **Class**: `light` (or `other` if no suitable built-in class).
+- **Capabilities**: `onoff` (turns torch on/off).
+- **Android API**: `CameraManager.setTorchMode(cameraId, enabled)`. Requires `CAMERA` permission (or `FLASHLIGHT` permission on API 33+; verify per target SDK).
+- **Homey actions auto-generated**: Turn on, Turn off, Toggle.
+- **Notes**: Only one camera ID supports the torch; detect it at connect time and cache. If the device has no torch, the Homey device should show as unavailable.
+
+### 19.2 Light / Lux Sensor Device
+
+- **Class**: `sensor`.
+- **Capabilities**: custom `measure_lux` (float, lux).
+- **Android API**: `SensorManager` + `Sensor.TYPE_LIGHT`. Register a listener in `PlaybackService`; debounce readings to at most 1 Hz before forwarding over WebSocket.
+- **Protocol**: new `sensor_update` message — `{ type: "sensor_update", sensorType: "lux", value: <float> }`.
+- **Homey triggers**: "Lux changed" (device trigger card with `lux` token), "Lux above/below threshold" (condition card).
+- **Notes**: Sensor availability varies; report unavailable if `TYPE_LIGHT` is not present.
+
+### 19.3 Motion / Accelerometer Device
+
+- **Class**: `sensor`.
+- **Capabilities**: custom `alarm_motion` (boolean).
+- **Android API**: `Sensor.TYPE_ACCELEROMETER`. Compute magnitude of acceleration delta; threshold configurable in Settings (default: 2.0 m/s²). Debounce to one event per 500 ms.
+- **Protocol**: reuse `sensor_update` with `sensorType: "motion"` and `value: true/false`.
+- **Homey triggers**: "Motion detected" (device trigger card).
+- **Notes**: Requires device to be awake (or using a wakelock for sensor sampling). Power trade-offs must be documented in the Settings screen.
+
+### 19.4 Camera Snapshot Device
+
+- **Class**: `other`.
+- **Capabilities**: none built-in; custom action card "Take snapshot".
+- **Android API**: `CameraX` ImageCapture use-case. Saves JPEG to app-private storage; delivers path via `sensor_update` with `sensorType: "snapshot"` and `value: <file-uri>`.
+- **Homey actions**: "Take snapshot" (Advanced Flow token: `image_path` string).
+- **Permissions**: `CAMERA`. User must grant at runtime; pairing view should explain why.
+- **Notes**: CameraX requires an Activity context for lifecycle binding — needs a transparent trampoline Activity or a Surface-less capture session approach on newer APIs.
+
+### 19.5 GPS / Location Device
+
+- **Class**: `other`.
+- **Capabilities**: `measure_latitude` (float), `measure_longitude` (float).
+- **Android API**: `FusedLocationProviderClient` (Google Play Services) or `LocationManager` (no-GMS fallback). Updates at most every 60 seconds or 50 m.
+- **Protocol**: `sensor_update` with `sensorType: "location"` and `value: { lat: float, lon: float }`.
+- **Homey conditions**: "Device is within X metres of [location]" (condition card).
+- **Permissions**: `ACCESS_FINE_LOCATION` + `ACCESS_BACKGROUND_LOCATION` (for background updates). The background location permission requires explicit user grant via system dialog on API 30+; explain rationale in Settings.
+- **Notes**: GPS accuracy degrades indoors. Consider offering a manual "Last known location" mode for indoor setups.
+
+### 19.6 Shared Protocol Notes for Sensor Devices
+
+- All sensor devices reuse the same WebSocket connection as the audio device.
+- The Android app represents all sensor types as sub-devices under the same Homey device, or as separate paired devices — decision deferred to implementation.
+- `sensor_update` is a new upstream message type; add to `constants.js`, `constants.kt`, `MessageProtocol.js`, and `MessageProtocol.kt` when implementing any sensor device.
+- Sensor permissions must be requested at runtime. If any permission is permanently denied, the corresponding device type shows as unavailable with a user-readable explanation.
 
 ---
 
