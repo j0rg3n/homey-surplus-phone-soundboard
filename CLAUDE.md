@@ -128,3 +128,9 @@ Read this before making any changes. These rules apply to both the Homey (Node.j
   adb shell am force-stop com.soundboard
   adb shell am start -n com.soundboard/.ui.MainActivity
   ```
+
+---
+
+## Daily routines
+
+- **todoist-triage**: `/todoist-triage huset, hytta o.l./surplus-soundboard` — run daily to pull new tasks from Todoist into this repo.
