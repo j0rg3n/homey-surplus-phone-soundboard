@@ -66,7 +66,7 @@ class LibraryFragment : Fragment(R.layout.fragment_library) {
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
                 val pos = viewHolder.adapterPosition
-                if (pos == RecyclerView.NO_ID) return
+                if (pos == RecyclerView.NO_POSITION) return
                 val sample = adapter.currentList[pos]
                 adapter.notifyItemChanged(pos)
                 if (direction == ItemTouchHelper.LEFT) {
