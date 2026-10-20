@@ -25,7 +25,8 @@
     "coverageDirectory": "coverage",
     "collectCoverageFrom": [
       "lib/**/*.js",
-      "drivers/**/*.js"
+      "drivers/**/*.js",
+      "widgets/*/api.js"
     ]
   },
   "dependencies": {

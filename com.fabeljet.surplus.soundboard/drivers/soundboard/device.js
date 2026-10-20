@@ -79,6 +79,10 @@ class SoundboardDevice extends Device {
     return this._handles.isPlaying(soundName);
   }
 
+  getPlayingHandles() {
+    return this._handles.getAll();
+  }
+
   _handleMessage(msg) {
     switch (msg.type) {
       case MSG.STARTED:

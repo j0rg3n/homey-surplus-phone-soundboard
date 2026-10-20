@@ -48,10 +48,13 @@ HomeyApp (app.js)
 └── SoundboardDriver (driver.js)      # Pairing: IP entry, connect, verify
      └── SoundboardDevice (device.js) # Thin adapter: WS client → capabilities + Flow cards
 
+widgets/soundboard/                # Dashboard widget (§8.6): api.js + public/index.html
+
 lib/
 ├── WebSocketClient.js         # Manages persistent WS connection, reconnect, heartbeat
 ├── MessageProtocol.js         # Serialize/deserialize protocol messages (both directions)
 ├── PlaybackHandleStore.js     # Maps handle strings to in-flight playback state
+├── SoundboardWidgetApi.js     # Dashboard widget state and actions (§8.6)
 └── constants.js               # Port defaults, message type strings, timeouts
 
 test/
@@ -62,6 +65,9 @@ test/
 ├── PlaybackHandleStore.test.js
 ├── WebSocketClient.test.js
 ├── SoundboardDevice.test.js
+├── SoundboardDriver.test.js
+├── SoundboardWidgetApi.test.js   # lib/SoundboardWidgetApi.js
+├── SoundboardWidget.test.js      # widgets/soundboard/api.js against a real device
 └── e2e/
     └── pairing.spec.js        # Playwright tests for pairing UI
 ```
@@ -420,6 +426,44 @@ Stored in device store on every `hello_ack` and `library_update`:
 
 `play_sound` action's `sound` dropdown is populated from this store. When device is offline, last known list is shown with an "(offline)" label.
 
+### 8.6 Dashboard Widget
+
+A Homey dashboard widget (`widgets/soundboard/`) that works as a sound board for one paired Soundboard device.
+
+**Settings:**
+
+| Setting ID | Type | Notes |
+|---|---|---|
+| `device` | autocomplete | Soundboard device to control. Empty → the first paired Soundboard device. |
+
+**Layout:**
+
+- Header: device name, and a **Stop all** button that sends `stop_all`.
+- One row per sound from the device store (§8.5): sound name, duration (`m:ss`), loop indicator if `loop: true` — the same row content as the Android Library screen (§5.3).
+- Each row has a favorite star. Favorites are listed first; within each group, sounds are sorted alphabetically (case-insensitive).
+- A row is shown as playing while the `PlaybackHandleStore` holds at least one handle for its `soundId`.
+- When the device is unavailable, the list shows the last known sounds with an "offline" label; row taps and **Stop all** do nothing, but favorites can still be toggled.
+- After a tap that starts a sound, the row shows as playing and ignores taps until the phone confirms `started` (or two poll intervals pass), so a quick second tap isn't sent as another `play`.
+- Action errors (for example "Soundboard is offline") stay visible until the next successful action.
+
+**Behavior:**
+
+- Tap a row that is not playing → `play` for that sound at the device's global volume (same default as `play_sound` without a volume).
+- Tap a row that is playing → `stop` for every in-flight handle of that sound (including handles started by Flows).
+- Tap the star → toggles the favorite. Favorites are stored per device as an array of sound IDs in the device store key `favorites`, so they survive app restarts. IDs of sounds no longer in the library are kept but not shown.
+- The widget polls the state endpoint every `WIDGET_POLL_INTERVAL_MS` (2000 ms, returned as `pollIntervalMs`) while open, and immediately after each action. (Polling rather than realtime events keeps the device adapter free of widget code; the state call is a local in-memory read.)
+
+**Widget API** (`widgets/soundboard/api.js`, logic in `lib/SoundboardWidgetApi.js`):
+
+| Method | Path | Input | Returns |
+|---|---|---|---|
+| `GET` | `/` | query `deviceId` | `{ deviceId, deviceName, available, pollIntervalMs, sounds: [{ id, name, duration, loop, favorite, playing }], error? }` |
+| `POST` | `/toggle` | body `{ deviceId, soundId }` | `{ playing }` — the state requested |
+| `POST` | `/stop-all` | body `{ deviceId }` | `{}` |
+| `POST` | `/favorite` | body `{ deviceId, soundId, favorite }` | `{ favorites }` |
+
+`toggle` and `stop-all` fail with "Soundboard is offline" when the device is unavailable. When no matching device exists, the POST calls fail with "No soundboard device found"; `GET /` instead returns an empty, unavailable state with that text in `error`, so the widget keeps polling and recovers once a device is paired.
+
 ---
 
 ## 9. `MessageProtocol.js` Interface
@@ -509,6 +553,7 @@ const RECONNECT_BASE_MS      = 1000;
 const RECONNECT_MAX_MS       = 30000;
 const HELLO_TIMEOUT_MS       = 5000;
 const PROTOCOL_VERSION       = '1.0';
+const WIDGET_POLL_INTERVAL_MS = 2000;   // Homey only — dashboard widget (§8.6)
 
 const MSG = {
   PLAY:            'play',

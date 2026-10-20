@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body {
+      margin: 0;
+      font-family: var(--homey-font-family, sans-serif);
+      color: var(--homey-text-color, #222);
+    }
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 12px;
+      gap: 8px;
+    }
+    .title { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .offline { color: var(--homey-text-color-light, #888); font-weight: 400; }
+    .stop-all {
+      border: none;
+      border-radius: 8px;
+      padding: 6px 12px;
+      font: inherit;
+      background: var(--homey-color-danger, #e74c3c);
+      color: #fff;
+      cursor: pointer;
+    }
+    .stop-all:disabled { opacity: 0.5; cursor: default; }
+    .list { list-style: none; margin: 0; padding: 0; }
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-top: 1px solid var(--homey-line-color, rgba(128, 128, 128, 0.2));
+      cursor: pointer;
+      user-select: none;
+    }
+    .row.playing { background: var(--homey-color-highlight-light, rgba(108, 92, 231, 0.15)); }
+    .row.disabled { cursor: default; opacity: 0.6; }
+    .star {
+      border: none;
+      background: none;
+      font-size: 18px;
+      padding: 0 4px;
+      cursor: pointer;
+      color: var(--homey-text-color-light, #888);
+    }
+    .star.on { color: #f1c40f; }
+    .state { width: 16px; text-align: center; }
+    .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .meta { color: var(--homey-text-color-light, #888); font-variant-numeric: tabular-nums; }
+    .message { padding: 12px; color: var(--homey-text-color-light, #888); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <span class="title" id="title">Soundboard</span>
+    <button class="stop-all" id="stop-all" type="button">Stop all</button>
+  </div>
+  <ul class="list" id="list"></ul>
+  <div class="message" id="message"></div>
+
+  <script type="text/javascript">
+    // Used only until the first state arrives; after that the server's pollIntervalMs (WIDGET_POLL_INTERVAL_MS) applies.
+    const FALLBACK_POLL_MS = 2000;
+
+    function onHomeyReady(Homey) {
+      const settings = Homey.getSettings() || {};
+      const deviceId = settings.device && typeof settings.device === 'object' ? settings.device.id : settings.device;
+      const titleEl = document.getElementById('title');
+      const listEl = document.getElementById('list');
+      const messageEl = document.getElementById('message');
+      const stopAllEl = document.getElementById('stop-all');
+      let state = null;
+      let actionError = '';
+      let pollTimer = null;
+      let requestSeq = 0;
+      let actionQueue = Promise.resolve();
+      // soundId -> time until which a just-started sound counts as playing, so a
+      // second tap before the phone confirms `started` isn't taken as another play.
+      const pendingPlays = new Map();
+
+      function pollInterval() {
+        return state ? state.pollIntervalMs : FALLBACK_POLL_MS;
+      }
+
+      function showMessage(text) {
+        messageEl.textContent = text;
+        messageEl.style.display = text ? 'block' : 'none';
+      }
+
+      function isPending(sound) {
+        const until = pendingPlays.get(sound.id);
+        if (until === undefined) return false;
+        if (sound.playing || Date.now() > until) {
+          pendingPlays.delete(sound.id);
+          return false;
+        }
+        return true;
+      }
+
+      function render() {
+        titleEl.textContent = state.deviceName || 'Soundboard';
+        if (!state.available && state.deviceId) {
+          const offline = document.createElement('span');
+          offline.className = 'offline';
+          offline.textContent = ' (offline)';
+          titleEl.appendChild(offline);
+        }
+        stopAllEl.disabled = !state.available;
+
+        listEl.textContent = '';
+        for (const sound of state.sounds) {
+          const pending = isPending(sound);
+          const playing = sound.playing || pending;
+          const row = document.createElement('li');
+          row.className = 'row' + (playing ? ' playing' : '') + (state.available && !pending ? '' : ' disabled');
+
+          const star = document.createElement('button');
+          star.type = 'button';
+          star.className = 'star' + (sound.favorite ? ' on' : '');
+          star.textContent = sound.favorite ? '★' : '☆';
+          star.title = sound.favorite ? 'Remove from favorites' : 'Add to favorites';
+          star.addEventListener('click', (event) => {
+            event.stopPropagation();
+            act('/favorite', { soundId: sound.id, favorite: !sound.favorite });
+          });
+
+          const stateIcon = document.createElement('span');
+          stateIcon.className = 'state';
+          stateIcon.textContent = playing ? '■' : '▶';
+
+          const name = document.createElement('span');
+          name.className = 'name';
+          name.textContent = sound.name;
+
+          const meta = document.createElement('span');
+          meta.className = 'meta';
+          meta.textContent = (sound.loop ? '↻ ' : '') + sound.duration;
+
+          row.append(star, stateIcon, name, meta);
+          row.addEventListener('click', () => {
+            if (!state.available || isPending(sound)) return;
+            if (!sound.playing) pendingPlays.set(sound.id, Date.now() + 2 * pollInterval());
+            act('/toggle', { soundId: sound.id });
+          });
+          listEl.appendChild(row);
+        }
+
+        if (actionError) showMessage(actionError);
+        else if (state.error) showMessage(state.error);
+        else showMessage(state.sounds.length === 0 ? 'No sounds in the library yet.' : '');
+        Homey.setHeight(document.body.scrollHeight);
+      }
+
+      async function refresh() {
+        const seq = ++requestSeq;
+        try {
+          const path = deviceId ? '/?deviceId=' + encodeURIComponent(deviceId) : '/';
+          const next = await Homey.api('GET', path);
+          if (seq !== requestSeq) return; // a newer refresh has started; drop this answer
+          state = next;
+          render();
+        } catch (err) {
+          if (seq !== requestSeq) return;
+          showMessage(err.message || String(err));
+        }
+      }
+
+      function schedulePoll() {
+        clearTimeout(pollTimer);
+        pollTimer = setTimeout(async () => {
+          await refresh();
+          schedulePoll();
+        }, pollInterval());
+      }
+
+      // Actions run one at a time so quick taps (e.g. two stars) don't race each other.
+      function act(path, body) {
+        actionQueue = actionQueue.then(async () => {
+          try {
+            await Homey.api('POST', path, Object.assign({ deviceId }, body));
+            actionError = '';
+          } catch (err) {
+            actionError = err.message || String(err);
+            pendingPlays.clear();
+          }
+          await refresh();
+        });
+      }
+
+      stopAllEl.addEventListener('click', () => act('/stop-all', {}));
+
+      refresh().then(() => {
+        schedulePoll();
+        Homey.ready({ height: document.body.scrollHeight });
+      });
+
+      window.addEventListener('unload', () => clearTimeout(pollTimer));
+    }
+  </script>
+</body>
+</html>

@@ -84,6 +84,22 @@ class SoundboardDriver extends Driver {
 
     this.homey.flow.getDeviceTriggerCard('sound_done')
       .registerRunListener(async () => true);
+
+    this._registerWidget();
+  }
+
+  _registerWidget() {
+    // A widget problem must not stop the Flow cards above from working.
+    try {
+      this.homey.dashboards.getWidget('soundboard')
+        .registerSettingAutocompleteListener('device', async (query) => {
+          return this.getDevices()
+            .filter((d) => !query || d.getName().toLowerCase().includes(query.toLowerCase()))
+            .map((d) => ({ id: d.getData().id, name: d.getName() }));
+        });
+    } catch (err) {
+      this.error('Could not register the soundboard widget:', err.message);
+    }
   }
 
   async onPair(session) {

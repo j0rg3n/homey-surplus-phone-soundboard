@@ -273,5 +273,45 @@
       ],
       "id": "soundboard"
     }
-  ]
+  ],
+  "widgets": {
+    "soundboard": {
+      "name": {
+        "en": "Soundboard"
+      },
+      "height": 320,
+      "transparent": false,
+      "settings": [
+        {
+          "id": "device",
+          "type": "autocomplete",
+          "title": {
+            "en": "Soundboard device"
+          },
+          "hint": {
+            "en": "Leave empty to use the first paired soundboard."
+          }
+        }
+      ],
+      "api": {
+        "getState": {
+          "method": "GET",
+          "path": "/"
+        },
+        "toggleSound": {
+          "method": "POST",
+          "path": "/toggle"
+        },
+        "stopAll": {
+          "method": "POST",
+          "path": "/stop-all"
+        },
+        "setFavorite": {
+          "method": "POST",
+          "path": "/favorite"
+        }
+      },
+      "id": "soundboard"
+    }
+  }
 }

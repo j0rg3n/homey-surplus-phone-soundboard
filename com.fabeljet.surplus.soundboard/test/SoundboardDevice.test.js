@@ -310,6 +310,23 @@ describe('SoundboardDevice', () => {
     });
   });
 
+  describe('getPlayingHandles', () => {
+    it('returns an empty array when nothing is playing', async () => {
+      const { device } = createDevice();
+      await device.onInit();
+      expect(device.getPlayingHandles()).toEqual([]);
+    });
+
+    it('returns every in-flight handle with its soundId', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'drum', soundName: 'Drum', durationMs: 2000 });
+      getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h2', soundId: 'bell', soundName: 'Bell', durationMs: 1000 });
+      getMockClient().simulateMessage({ type: MSG.DONE, handle: 'h1', soundName: 'Drum', reason: 'completed' });
+      expect(device.getPlayingHandles().map((h) => [h.handle, h.soundId])).toEqual([['h2', 'bell']]);
+    });
+  });
+
   describe('onDeleted', () => {
     it('disconnects the client', async () => {
       const { device, getMockClient } = createDevice();
