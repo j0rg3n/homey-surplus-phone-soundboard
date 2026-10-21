@@ -8,6 +8,7 @@
  * control ping intervals and reconnect backoff without wall-clock delays.
  */
 
+const net = require('net');
 const WebSocket = require('ws');
 const WebSocketClient = require('../lib/WebSocketClient');
 const MessageProtocol = require('../lib/MessageProtocol');
@@ -16,6 +17,7 @@ const {
   PROTOCOL_VERSION,
   PING_INTERVAL_MS,
   PING_TIMEOUT_COUNT,
+  HELLO_TIMEOUT_MS,
   RECONNECT_BASE_MS,
   RECONNECT_MAX_MS,
 } = require('../lib/constants');
@@ -113,7 +115,7 @@ describe('WebSocketClient', () => {
     ({ server, port } = await createServer());
     // Fake setTimeout/setInterval but leave setImmediate + nextTick real so
     // network I/O still progresses through the Node.js event loop.
-    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick'] });
+    jest.useFakeTimers({ doNotFake: ['setImmediate', 'nextTick', 'Date'] });
   });
 
   afterEach(async () => {
@@ -322,6 +324,223 @@ describe('WebSocketClient', () => {
 
       // If _destroyed, _scheduleReconnect is never called.
       expect(client._reconnectTimer).toBeNull();
+    });
+  });
+
+  // ── retry until the phone is back (GitHub #2) ─────────────────────────────
+
+  describe('retry after outage', () => {
+    /** Close the server and every open server-side socket: the phone is gone. */
+    async function phoneGoesAway() {
+      for (const sock of server.clients) sock.terminate();
+      await new Promise((resolve) => server.close(resolve));
+    }
+
+    /** Start a new server on the same port: the phone is back. */
+    async function phoneComesBack() {
+      server = await new Promise((resolve) => {
+        const s = new WebSocket.Server({ port }, () => resolve(s));
+      });
+    }
+
+    /** Fire the pending reconnect timer and wait until that attempt has failed and the next is scheduled. */
+    async function refusedAttemptAfter(delay, attempt) {
+      jest.advanceTimersByTime(delay);
+      await waitUntil(() => client._reconnectAttempt === attempt && client._reconnectTimer !== null);
+    }
+
+    test('does not retry a failed first connect by default (pairing probe)', async () => {
+      client = new WebSocketClient({ ip: '127.0.0.1', port });
+
+      const connectPromise = client.connect();
+      const serverSocket = await nextServerSocket(server);
+      await nextMessage(serverSocket);
+      serverSocket.close();
+      await expect(connectPromise).rejects.toThrow();
+
+      await flushPromises();
+      expect(client._reconnectTimer).toBeNull();
+    });
+
+    test('retries a failed first connect when retryInitialConnect is set, and fires onConnect once it succeeds', async () => {
+      const onConnect = jest.fn();
+      const onDisconnect = jest.fn();
+      client = new WebSocketClient({
+        ip: '127.0.0.1', port, onConnect, onDisconnect, retryInitialConnect: true,
+      });
+
+      const connectPromise = client.connect();
+      const serverSocket = await nextServerSocket(server);
+      await nextMessage(serverSocket); // hello, never answered
+      serverSocket.close();
+      await expect(connectPromise).rejects.toThrow();
+      await waitUntil(() => client._reconnectTimer !== null);
+
+      jest.advanceTimersByTime(RECONNECT_BASE_MS);
+      const serverSocket2 = await nextServerSocket(server);
+      await nextMessage(serverSocket2);
+      sendHelloAck(serverSocket2);
+
+      await waitUntil(() => client.isConnected());
+      expect(onConnect).toHaveBeenCalledTimes(1);
+      expect(onDisconnect).not.toHaveBeenCalled();
+      expect(client._reconnectDelay).toBe(RECONNECT_BASE_MS);
+    });
+
+    test('retries a refused first connect when retryInitialConnect is set', async () => {
+      await phoneGoesAway();
+      client = new WebSocketClient({ ip: '127.0.0.1', port, retryInitialConnect: true });
+
+      await expect(client.connect()).rejects.toThrow();
+      await waitUntil(() => client._reconnectTimer !== null);
+
+      await phoneComesBack();
+      jest.advanceTimersByTime(RECONNECT_BASE_MS);
+      const serverSocket = await nextServerSocket(server);
+      await nextMessage(serverSocket);
+      sendHelloAck(serverSocket);
+
+      await waitUntil(() => client.isConnected());
+    });
+
+    test('keeps retrying with growing delays while the phone refuses connections, then reconnects', async () => {
+      const onConnect = jest.fn();
+      client = new WebSocketClient({ ip: '127.0.0.1', port, onConnect });
+      await performConnect(server, client.connect());
+
+      await phoneGoesAway();
+      await waitUntil(() => !client.isConnected() && client._reconnectTimer !== null);
+
+      // Three refused attempts: delays 1s, 2s, 4s; the next one is scheduled at 8s.
+      await refusedAttemptAfter(RECONNECT_BASE_MS, 1);
+      await refusedAttemptAfter(RECONNECT_BASE_MS * 2, 2);
+      await refusedAttemptAfter(RECONNECT_BASE_MS * 4, 3);
+      expect(client._reconnectAttempt).toBe(3);
+      expect(client._reconnectDelay).toBe(RECONNECT_BASE_MS * 16);
+
+      await phoneComesBack();
+      jest.advanceTimersByTime(RECONNECT_BASE_MS * 8);
+      const serverSocket = await nextServerSocket(server);
+      await nextMessage(serverSocket);
+      sendHelloAck(serverSocket);
+
+      await waitUntil(() => onConnect.mock.calls.length === 2);
+      expect(client._reconnectAttempt).toBe(0);
+      expect(client._reconnectDelay).toBe(RECONNECT_BASE_MS);
+    });
+
+    test('logs the drop, each attempt, each failure and the reconnect', async () => {
+      const log = jest.fn();
+      client = new WebSocketClient({ ip: '127.0.0.1', port, log });
+      await performConnect(server, client.connect());
+
+      await phoneGoesAway();
+      await waitUntil(() => client._reconnectTimer !== null);
+      jest.advanceTimersByTime(RECONNECT_BASE_MS);
+      await waitUntil(() => client._reconnectAttempt === 1 && client._reconnectTimer !== null);
+
+      await phoneComesBack();
+      jest.advanceTimersByTime(RECONNECT_BASE_MS * 2);
+      const serverSocket = await nextServerSocket(server);
+      await nextMessage(serverSocket);
+      sendHelloAck(serverSocket);
+      await waitUntil(() => client.isConnected());
+
+      const lines = log.mock.calls.map((args) => args.join(' '));
+      const address = `127.0.0.1:${port}`;
+      expect(lines[0]).toBe(`Connection to ${address} lost: closed by peer`);
+      expect(lines[1]).toBe(`Reconnecting to ${address} in ${RECONNECT_BASE_MS} ms`);
+      expect(lines[2]).toBe(`Reconnect attempt 1 to ${address}`);
+      expect(lines[3]).toMatch(new RegExp(`^Reconnect attempt 1 to ${address} failed: .*ECONNREFUSED`));
+      expect(lines[4]).toBe(`Reconnecting to ${address} in ${RECONNECT_BASE_MS * 2} ms`);
+      expect(lines[5]).toBe(`Reconnect attempt 2 to ${address}`);
+      expect(lines[6]).toBe(`Reconnected to ${address} after 2 attempt(s)`);
+      expect(lines).toHaveLength(7);
+    });
+
+    test('logs a failed hello_ack as the failure reason', async () => {
+      const log = jest.fn();
+      client = new WebSocketClient({
+        ip: '127.0.0.1', port, log, retryInitialConnect: true,
+      });
+
+      const connectPromise = client.connect();
+      const serverSocket = await nextServerSocket(server);
+      await nextMessage(serverSocket); // socket is open and hello was sent; never answer
+      jest.advanceTimersByTime(HELLO_TIMEOUT_MS);
+      await expect(connectPromise).rejects.toThrow('hello_ack timeout');
+      await waitUntil(() => log.mock.calls.length >= 2);
+
+      expect(log.mock.calls[0].join(' ')).toBe(`Connect to 127.0.0.1:${port} failed: no hello_ack`);
+      expect(log.mock.calls[1].join(' ')).toBe(`Reconnecting to 127.0.0.1:${port} in ${RECONNECT_BASE_MS} ms`);
+    });
+
+    test('logs a connect timeout when TCP connects but the WebSocket handshake never completes', async () => {
+      // A plain TCP server that accepts and then stays silent.
+      const sockets = [];
+      const silent = net.createServer((sock) => sockets.push(sock));
+      await new Promise((resolve) => silent.listen(0, '127.0.0.1', resolve));
+      const silentPort = silent.address().port;
+      const log = jest.fn();
+      client = new WebSocketClient({
+        ip: '127.0.0.1', port: silentPort, log, retryInitialConnect: true,
+      });
+
+      const connectPromise = client.connect();
+      await waitUntil(() => sockets.length === 1);
+      jest.advanceTimersByTime(HELLO_TIMEOUT_MS);
+      await expect(connectPromise).rejects.toThrow('hello_ack timeout');
+      await waitUntil(() => log.mock.calls.length >= 1);
+
+      expect(log.mock.calls[0][0]).toBe(`Connect to 127.0.0.1:${silentPort} failed: connect timeout`);
+      await client.disconnect();
+      sockets.forEach((sock) => sock.destroy());
+      await new Promise((resolve) => silent.close(resolve));
+    });
+
+    test('stops retrying after disconnect()', async () => {
+      await phoneGoesAway();
+      client = new WebSocketClient({ ip: '127.0.0.1', port, retryInitialConnect: true });
+      await expect(client.connect()).rejects.toThrow();
+      await waitUntil(() => client._reconnectTimer !== null);
+
+      await client.disconnect();
+      expect(client._reconnectTimer).toBeNull();
+
+      await phoneComesBack();
+      const connections = jest.fn();
+      server.on('connection', connections);
+      jest.advanceTimersByTime(RECONNECT_MAX_MS * 2);
+      await flushPromises();
+      expect(connections).not.toHaveBeenCalled();
+    });
+
+    test('logs only failures once the backoff is at RECONNECT_MAX_MS', async () => {
+      const log = jest.fn();
+      client = new WebSocketClient({ ip: '127.0.0.1', port, log });
+      await performConnect(server, client.connect());
+      client._reconnectDelay = RECONNECT_MAX_MS;
+
+      await phoneGoesAway();
+      await waitUntil(() => client._reconnectTimer !== null);
+      log.mockClear();
+      jest.advanceTimersByTime(RECONNECT_MAX_MS);
+      await waitUntil(() => client._reconnectAttempt === 1 && client._reconnectTimer !== null);
+
+      expect(log).toHaveBeenCalledTimes(1);
+      expect(log.mock.calls[0][0]).toMatch(/^Reconnect attempt 1 to .* failed: .*ECONNREFUSED/);
+    });
+
+    test('logs the missed pongs when the ping check drops the connection', async () => {
+      const log = jest.fn();
+      client = new WebSocketClient({ ip: '127.0.0.1', port, log });
+      await performConnect(server, client.connect());
+
+      jest.advanceTimersByTime(PING_INTERVAL_MS * PING_TIMEOUT_COUNT);
+      await waitUntil(() => !client.isConnected());
+
+      expect(log.mock.calls[0].join(' '))
+        .toBe(`Connection to 127.0.0.1:${port} lost: no pong after ${PING_TIMEOUT_COUNT} pings`);
     });
   });
 

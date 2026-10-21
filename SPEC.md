@@ -77,7 +77,7 @@ test/
 - **Android:** Ktor WebSocket server running in a foreground `PlaybackService`
 - **Homey:** WebSocket client in `WebSocketClient.js`
 - **Heartbeat:** Homey sends `ping` every 15 seconds; Android responds with `pong`. If 3 consecutive pings go unanswered, Homey marks device unavailable and fires `done` with `reason: "connection_lost"` for all in-flight handles.
-- **Reconnect:** Homey reconnects with exponential backoff (1s, 2s, 4s, 8s, max 30s).
+- **Reconnect:** Homey reconnects with exponential backoff (1s, 2s, 4s, 8s, max 30s). It keeps retrying until the phone answers or the device is deleted. This also applies when the very first connect fails (for example, Homey restarts while the phone is offline). Only the pairing probe gives up after one attempt. The app log gets a line for each drop (with the reason, e.g. no pong after 3 pings), each failed connect or reconnect attempt (with the reason, e.g. `ECONNREFUSED` or `connect timeout`), each scheduled retry (with its delay), each attempt, and the reconnect once it succeeds. Once the backoff has reached its maximum, only the failed attempts are logged, so a long outage writes one line per 30 s instead of three. The device stops retrying when it is deleted or the app stops (`onDeleted` / `onUninit`).
 
 ### 3.2 Message Format
 
@@ -454,7 +454,11 @@ store.isPlaying(soundName)  // → boolean
 ## 11. `WebSocketClient.js` Interface
 
 ```js
-new WebSocketClient({ ip, port, onMessage, onConnect, onDisconnect })
+new WebSocketClient({ ip, port, onMessage, onConnect, onDisconnect, retryInitialConnect, log })
+// retryInitialConnect (default false): if the first connect() fails, keep retrying with backoff
+//                                      (connect() still rejects). The device sets it; the pairing probe doesn't.
+// log (optional): (...args) => void, one line per drop, failed attempt, scheduled retry, attempt, and successful reconnect
+//                 (scheduled-retry and attempt lines are skipped once the backoff is at RECONNECT_MAX_MS).
 
 async connect()
 async disconnect()
@@ -462,7 +466,7 @@ async send(messageObject)   // serializes via MessageProtocol
 isConnected()               // → boolean
 ```
 
-Reconnect with backoff is internal. Fires `onDisconnect` on drop, `onConnect` on (re)establish.
+Reconnect with backoff is internal. Fires `onDisconnect` on drop of an established connection (not on failed attempts), `onConnect` on (re)establish. The backoff resets to `RECONNECT_BASE_MS` after every successful connect.
 
 ---
 
