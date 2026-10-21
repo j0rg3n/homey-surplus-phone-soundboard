@@ -80,7 +80,7 @@ See CLAUDE.md for rules governing how this TODO should be maintained.
 ## Group 9 — Post-Launch Improvements
 *Backlog items from user feedback and Todoist. Prioritise before starting any item.*
 
-- [ ] **9.1** Auto-reconnect: device should reconnect automatically when the connection drops without requiring an app restart (Todoist #6gWVG7vPg83pgqvr).
+- [x] **9.1** Auto-reconnect: device should reconnect automatically when the connection drops without requiring an app restart (Todoist #6gWVG7vPg83pgqvr).
 - [ ] **9.2** AppStore link and step-by-step setup instructions in the Homey pairing view (Todoist #6gWVHcV24HwXH2Fr).
 - [ ] **9.3** Loop with boundary control: expose loop-start and loop-end points as configurable per-sample fields in the Library editor; send as part of the `play` message (Todoist #6gWVFVc4m653GGvJ, per SPEC §3.2).
 - [ ] **9.4** Configurable threshold names ("Grenser: …" labels in the volume/settings UI) — make them editable strings stored in SharedPreferences (Todoist #6gWVFq3W42CPxQvr).

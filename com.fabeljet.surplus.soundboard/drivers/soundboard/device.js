@@ -16,6 +16,8 @@ class SoundboardDevice extends Device {
     this._client = this._createClient({
       ip,
       port,
+      retryInitialConnect: true,
+      log: (...args) => this.log(...args),
       onMessage: (msg) => this._handleMessage(msg),
       onConnect: (helloAck) => {
         this.log('Connected:', helloAck.deviceName);
@@ -35,8 +37,8 @@ class SoundboardDevice extends Device {
       await this._client.send({ type: value ? MSG.MUTE : MSG.UNMUTE });
     });
 
+    // On failure the client logs the reason and keeps retrying in the background.
     await this._client.connect().catch((err) => {
-      this.log('Initial connect failed:', err.message);
       this.setUnavailable(err.message).catch(this.error);
     });
   }
@@ -46,6 +48,11 @@ class SoundboardDevice extends Device {
   }
 
   async onDeleted() {
+    if (this._client) await this._client.disconnect();
+  }
+
+  async onUninit() {
+    // App stopping or updating: stop the background reconnect loop.
     if (this._client) await this._client.disconnect();
   }
 

@@ -64,6 +64,38 @@ describe('SoundboardDevice', () => {
       expect(getMockClient().isConnected()).toBe(true);
     });
 
+    it('asks the client to keep retrying a failed first connect and to log through the device', async () => {
+      const { device } = createDevice();
+      let opts;
+      device._createClient = (o) => {
+        opts = o;
+        return new MockWebSocketClient(o);
+      };
+      device.log = jest.fn();
+      await device.onInit();
+
+      expect(opts.retryInitialConnect).toBe(true);
+      opts.log('Reconnect attempt 1 to 127.0.0.1:8765');
+      expect(device.log).toHaveBeenCalledWith('Reconnect attempt 1 to 127.0.0.1:8765');
+    });
+
+    it('becomes available when a retry succeeds after a failed first connect', async () => {
+      const { device } = createDevice();
+      let mockClient;
+      device._createClient = (opts) => {
+        mockClient = new MockWebSocketClient(opts);
+        mockClient.connect = () => Promise.reject(new Error('connect ECONNREFUSED'));
+        return mockClient;
+      };
+      await device.onInit();
+      expect(device.setUnavailable).toHaveBeenCalledWith('connect ECONNREFUSED');
+      expect(device.setAvailable).not.toHaveBeenCalled();
+
+      // The client's background retry reaches the phone.
+      mockClient.simulateConnect({ deviceName: 'MockDevice', sounds: [{ id: 's1', name: 'Bell' }] });
+      expect(device.setAvailable).toHaveBeenCalledTimes(1);
+    });
+
     it('calls setAvailable after successful connect', async () => {
       const { device } = createDevice();
       await device.onInit();
@@ -307,6 +339,15 @@ describe('SoundboardDevice', () => {
       getMockClient().simulateMessage({ type: MSG.STARTED, handle: 'h1', soundId: 'drum', soundName: 'Drum', durationMs: 2000 });
       getMockClient().simulateMessage({ type: MSG.DONE, handle: 'h1', soundName: 'Drum', reason: 'completed' });
       expect(device.isSoundPlaying('Drum')).toBe(false);
+    });
+  });
+
+  describe('onUninit', () => {
+    it('disconnects the client so the reconnect loop stops', async () => {
+      const { device, getMockClient } = createDevice();
+      await device.onInit();
+      await device.onUninit();
+      expect(getMockClient().isConnected()).toBe(false);
     });
   });
 
