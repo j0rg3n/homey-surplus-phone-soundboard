@@ -6,6 +6,7 @@ const {
   RECONNECT_MAX_MS,
   HELLO_TIMEOUT_MS,
   PROTOCOL_VERSION,
+  WIDGET_POLL_INTERVAL_MS,
   MSG,
   DONE_REASON,
   ERROR_CODE,
@@ -35,6 +36,10 @@ describe('constants', () => {
 
     test('HELLO_TIMEOUT_MS is 5000', () => {
       expect(HELLO_TIMEOUT_MS).toBe(5000);
+    });
+
+    test('WIDGET_POLL_INTERVAL_MS is 2000', () => {
+      expect(WIDGET_POLL_INTERVAL_MS).toBe(2000);
     });
 
     test('PROTOCOL_VERSION is 1.0', () => {
